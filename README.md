@@ -95,3 +95,4 @@ src/
 - `.env` is excluded via `.gitignore` to prevent credential leakage.
 - Passwords hashed with `bcryptjs`.
 - HTTP cleartext traffic policies and CORS headers enforced.
+
