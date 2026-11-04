@@ -21,6 +21,9 @@ router.delete('/admin/banners/:id', auth_middleware_js_1.authenticateAdmin, Cata
 router.get('/admin/brands', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListBrands);
 router.post('/admin/brands', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateBrand);
 router.put('/admin/brands/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminUpdateBrand);
+router.get('/admin/categories', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListCategories);
+router.post('/admin/categories', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateCategory);
+router.put('/admin/categories/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminUpdateCategory);
 router.get('/admin/models', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListModels);
 router.post('/admin/models', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateModel);
 router.put('/admin/models/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminUpdateModel);

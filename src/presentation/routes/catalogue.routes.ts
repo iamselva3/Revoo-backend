@@ -24,6 +24,10 @@ router.get('/admin/brands', authenticateAdmin, CatalogueController.adminListBran
 router.post('/admin/brands', authenticateAdmin, CatalogueController.adminCreateBrand);
 router.put('/admin/brands/:id', authenticateAdmin, CatalogueController.adminUpdateBrand);
 
+router.get('/admin/categories', authenticateAdmin, CatalogueController.adminListCategories);
+router.post('/admin/categories', authenticateAdmin, CatalogueController.adminCreateCategory);
+router.put('/admin/categories/:id', authenticateAdmin, CatalogueController.adminUpdateCategory);
+
 router.get('/admin/models', authenticateAdmin, CatalogueController.adminListModels);
 router.post('/admin/models', authenticateAdmin, CatalogueController.adminCreateModel);
 router.put('/admin/models/:id', authenticateAdmin, CatalogueController.adminUpdateModel);

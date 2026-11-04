@@ -8,6 +8,10 @@ export interface IBannerDocument extends Document {
   color1: string;
   color2: string;
   icon: string;
+  imageUrl?: string;
+  isPopupModal?: boolean;
+  popupActionText?: string;
+  popupActionUrl?: string;
   linkUrl?: string;
   isActive: boolean;
   displayOrder: number;
@@ -21,9 +25,13 @@ const BannerSchema = new Schema<IBannerDocument>(
     title: { type: String, required: true, trim: true },
     subtitle: { type: String, required: true, trim: true },
     badge: { type: String, default: 'Special Offer' },
-    color1: { type: String, default: '#0F172A' },
-    color2: { type: String, default: '#1E293B' },
+    color1: { type: String, default: '#059669' },
+    color2: { type: String, default: '#022C22' },
     icon: { type: String, default: 'flash_on' },
+    imageUrl: { type: String, trim: true },
+    isPopupModal: { type: Boolean, default: false },
+    popupActionText: { type: String, default: 'BUY NOW — LIVE SALE' },
+    popupActionUrl: { type: String, default: '/buy' },
     linkUrl: { type: String, default: '/catalogue/brands' },
     isActive: { type: Boolean, default: true, index: true },
     displayOrder: { type: Number, default: 0 },
@@ -32,4 +40,3 @@ const BannerSchema = new Schema<IBannerDocument>(
 );
 
 export const BannerModel = mongoose.model<IBannerDocument>('Banner', BannerSchema);
-

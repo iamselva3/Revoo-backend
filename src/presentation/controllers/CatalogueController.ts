@@ -722,5 +722,35 @@ export class CatalogueController {
       next(err);
     }
   }
+
+  // --- Admin Category Endpoints ---
+  public static async adminListCategories(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const categories = await CategoryModel.find().sort({ displayOrder: 1, createdAt: 1 });
+      res.status(200).json({ success: true, data: categories });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async adminCreateCategory(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const category = await CategoryModel.create(req.body);
+      res.status(201).json({ success: true, message: 'Category created successfully.', data: category });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async adminUpdateCategory(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const category = await CategoryModel.findByIdAndUpdate(id, req.body, { new: true });
+      if (!category) return next(new AppError('Category not found.', 404));
+      res.status(200).json({ success: true, message: 'Category updated successfully.', data: category });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 

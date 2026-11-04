@@ -683,6 +683,37 @@ class CatalogueController {
             next(err);
         }
     }
+    // --- Admin Category Endpoints ---
+    static async adminListCategories(req, res, next) {
+        try {
+            const categories = await Category_js_1.CategoryModel.find().sort({ displayOrder: 1, createdAt: 1 });
+            res.status(200).json({ success: true, data: categories });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static async adminCreateCategory(req, res, next) {
+        try {
+            const category = await Category_js_1.CategoryModel.create(req.body);
+            res.status(201).json({ success: true, message: 'Category created successfully.', data: category });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
+    static async adminUpdateCategory(req, res, next) {
+        try {
+            const { id } = req.params;
+            const category = await Category_js_1.CategoryModel.findByIdAndUpdate(id, req.body, { new: true });
+            if (!category)
+                return next(new types_js_1.AppError('Category not found.', 404));
+            res.status(200).json({ success: true, message: 'Category updated successfully.', data: category });
+        }
+        catch (err) {
+            next(err);
+        }
+    }
 }
 exports.CatalogueController = CatalogueController;
 //# sourceMappingURL=CatalogueController.js.map
