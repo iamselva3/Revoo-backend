@@ -19,9 +19,13 @@ app.use(helmet({
 // CORS policy
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
+    // Allow requests with no origin (like native mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-    if (config.cors.origin.includes(origin) || !config.isProduction) {
+    if (
+      config.cors.origin.includes('*') ||
+      config.cors.origin.includes(origin) ||
+      !config.isProduction
+    ) {
       return callback(null, true);
     }
     return callback(new AppError('Blocked by CORS policy', 403));
@@ -48,13 +52,7 @@ app.use('/uploads', express.static(uploadBasePath));
 // Mount REST API version 1
 app.use('/api/v1', routes);
 
-// 404 handler for undefined routes
-app.use((req, res, next) => {
-  next(new AppError(`Cannot ${req.method} ${req.originalUrl}. Route not found.`, 404));
-});
-
-// Centralized error handler
+// Centralized error handling middleware
 app.use(errorHandler);
 
 export default app;
-
