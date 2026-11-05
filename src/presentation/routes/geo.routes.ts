@@ -8,3 +8,4 @@ router.get('/cities', GeoController.getCities);
 router.get('/pincode/:pincode', GeoController.lookupPincode);
 
 export default router;
+

@@ -42,3 +42,4 @@ IndiaLocationSchema.index({ pincode: 1, city: 1 });
 
 export const IndiaStateModel = mongoose.model<IIndiaStateDocument>('IndiaState', IndiaStateSchema);
 export const IndiaLocationModel = mongoose.model<IIndiaLocationDocument>('IndiaLocation', IndiaLocationSchema);
+

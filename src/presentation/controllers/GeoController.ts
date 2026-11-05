@@ -45,12 +45,39 @@ export class GeoController {
         filter.state = { $regex: `^${state}$`, $options: 'i' };
       }
       if (q) {
-        filter.city = { $regex: q, $options: 'i' };
+        const safeQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.city = { $regex: safeQ, $options: 'i' };
       }
 
-      const cities = await IndiaLocationModel.find(filter)
+      let cities = await IndiaLocationModel.find(filter)
         .sort({ isPopular: -1, city: 1 })
         .limit(40);
+
+      // If no match found and query has at least 4 letters, try typo & phonetic tolerant match
+      if (cities.length === 0 && q.length >= 4) {
+        const relaxedPattern = q
+          .toLowerCase()
+          .replace(/[.*+?^${}()|[\]\\]/g, '')
+          .replace(/c/g, '[cv]')
+          .replace(/v/g, '[cv]')
+          .replace(/u/g, '[uo]')
+          .replace(/o/g, '[uo]')
+          .replace(/th/g, '(th|t|tt)')
+          .replace(/ll/g, 'l+')
+          .replace(/pp/g, 'p+');
+
+        try {
+          const fuzzyFilter: any = { city: { $regex: relaxedPattern, $options: 'i' } };
+          if (state) {
+            fuzzyFilter.state = { $regex: `^${state}$`, $options: 'i' };
+          }
+          cities = await IndiaLocationModel.find(fuzzyFilter)
+            .sort({ isPopular: -1, city: 1 })
+            .limit(20);
+        } catch (_) {
+          // ignore regex syntax issues
+        }
+      }
 
       return res.status(200).json({ success: true, count: cities.length, data: cities });
     } catch (err) {
@@ -150,3 +177,4 @@ export class GeoController {
     }
   }
 }
+
