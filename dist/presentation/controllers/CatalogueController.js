@@ -46,11 +46,28 @@ class CatalogueController {
                     return res.status(200).json({ success: true, data: [] });
                 }
             }
-            const models = await SmartphoneModel_js_1.SmartphoneModel.find({
+            const { category } = req.query;
+            let filterQuery = {
                 brandId: targetBrandId,
                 isPublished: true,
                 isArchived: false,
-            }).sort({ releaseYear: -1, name: 1 });
+            };
+            if (category) {
+                const catStr = category.toLowerCase();
+                if (catStr === 'mobile' || catStr === 'phones') {
+                    filterQuery.name = { $not: /(macbook|laptop|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia)/i };
+                }
+                else if (catStr === 'laptops') {
+                    filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift|air|pro 1[46])/i };
+                }
+                else if (catStr === 'tablets') {
+                    filterQuery.name = { $regex: /(ipad|tab|pad)/i };
+                }
+                else if (catStr === 'tv') {
+                    filterQuery.name = { $regex: /(tv|bravia|oled|qled|crystal|uhd)/i };
+                }
+            }
+            const models = await SmartphoneModel_js_1.SmartphoneModel.find(filterQuery).sort({ releaseYear: -1, name: 1 });
             res.status(200).json({ success: true, data: models });
         }
         catch (err) {
