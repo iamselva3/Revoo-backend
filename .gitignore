@@ -6,8 +6,11 @@ node_modules/
 .env.local
 .env.*.local
 
-# File uploads & storage
-uploads/
+# File uploads & storage (preserve official brand & device media)
+uploads/*
+!uploads/brands/
+!uploads/devices/
+!uploads/revoo-logo.png
 *.tmp
 
 # Logs

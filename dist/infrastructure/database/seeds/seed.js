@@ -55,78 +55,143 @@ async function seedDatabase() {
         isActive: true,
     });
     console.log('[Seeder] Created default Admin, Inspector, and Operations accounts.');
-    // 3. Brands (All 10 requested brands with verified Cloudflare R2 vector-rendered PNG logos)
+    // 3. Brands (Mobile, Laptops & Smart TVs with official verified transparent vector PNG logos)
     const apple = await Brand_js_1.BrandModel.create({
         name: 'Apple',
         slug: 'apple',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/apple.png',
+        logoUrl: '/uploads/brands/apple.png',
         displayOrder: 1,
         isActive: true,
     });
     const samsung = await Brand_js_1.BrandModel.create({
         name: 'Samsung',
         slug: 'samsung',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/samsung.png',
+        logoUrl: '/uploads/brands/samsung.png',
         displayOrder: 2,
         isActive: true,
     });
     const oneplus = await Brand_js_1.BrandModel.create({
         name: 'OnePlus',
         slug: 'oneplus',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/oneplus.png',
+        logoUrl: '/uploads/brands/oneplus.png',
         displayOrder: 3,
         isActive: true,
     });
     const google = await Brand_js_1.BrandModel.create({
         name: 'Google',
         slug: 'google',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/google.png',
+        logoUrl: '/uploads/brands/google.png',
         displayOrder: 4,
         isActive: true,
     });
     const vivo = await Brand_js_1.BrandModel.create({
         name: 'Vivo',
         slug: 'vivo',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/vivo.png',
+        logoUrl: '/uploads/brands/vivo.png',
         displayOrder: 5,
         isActive: true,
     });
     const oppo = await Brand_js_1.BrandModel.create({
         name: 'Oppo',
         slug: 'oppo',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/oppo.png',
+        logoUrl: '/uploads/brands/oppo.png',
         displayOrder: 6,
         isActive: true,
     });
     const nothing = await Brand_js_1.BrandModel.create({
         name: 'Nothing',
         slug: 'nothing',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/nothing.png',
+        logoUrl: '/uploads/brands/nothing.png',
         displayOrder: 7,
         isActive: true,
     });
     const redmi = await Brand_js_1.BrandModel.create({
         name: 'Redmi',
         slug: 'redmi',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/redmi.png',
+        logoUrl: '/uploads/brands/redmi.png',
         displayOrder: 8,
         isActive: true,
     });
     const realme = await Brand_js_1.BrandModel.create({
         name: 'Realme',
         slug: 'realme',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/realme.png',
+        logoUrl: '/uploads/brands/realme.png',
         displayOrder: 9,
         isActive: true,
     });
     const iqoo = await Brand_js_1.BrandModel.create({
         name: 'iQOO',
         slug: 'iqoo',
-        logoUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/brands/iqoo.png',
+        logoUrl: '/uploads/brands/iqoo.png',
         displayOrder: 10,
         isActive: true,
     });
-    console.log('[Seeder] Seeded all 10 brands with Cloudflare R2 assets: Apple, Samsung, OnePlus, Google, Vivo, Oppo, Nothing, Redmi, Realme, iQOO.');
+    // Laptop Brands
+    const dell = await Brand_js_1.BrandModel.create({
+        name: 'Dell',
+        slug: 'dell',
+        logoUrl: '/uploads/brands/dell.png',
+        displayOrder: 11,
+        isActive: true,
+    });
+    const hp = await Brand_js_1.BrandModel.create({
+        name: 'HP',
+        slug: 'hp',
+        logoUrl: '/uploads/brands/hp.png',
+        displayOrder: 12,
+        isActive: true,
+    });
+    const lenovo = await Brand_js_1.BrandModel.create({
+        name: 'Lenovo',
+        slug: 'lenovo',
+        logoUrl: '/uploads/brands/lenovo.png',
+        displayOrder: 13,
+        isActive: true,
+    });
+    const asus = await Brand_js_1.BrandModel.create({
+        name: 'ASUS',
+        slug: 'asus',
+        logoUrl: '/uploads/brands/asus.png',
+        displayOrder: 14,
+        isActive: true,
+    });
+    const acer = await Brand_js_1.BrandModel.create({
+        name: 'Acer',
+        slug: 'acer',
+        logoUrl: '/uploads/brands/acer.png',
+        displayOrder: 15,
+        isActive: true,
+    });
+    // Smart TV Brands
+    const sony = await Brand_js_1.BrandModel.create({
+        name: 'Sony',
+        slug: 'sony',
+        logoUrl: '/uploads/brands/sony.png',
+        displayOrder: 16,
+        isActive: true,
+    });
+    const lg = await Brand_js_1.BrandModel.create({
+        name: 'LG',
+        slug: 'lg',
+        logoUrl: '/uploads/brands/lg.png',
+        displayOrder: 17,
+        isActive: true,
+    });
+    const tcl = await Brand_js_1.BrandModel.create({
+        name: 'TCL',
+        slug: 'tcl',
+        logoUrl: '/uploads/brands/tcl.png',
+        displayOrder: 18,
+        isActive: true,
+    });
+    const xiaomi = await Brand_js_1.BrandModel.create({
+        name: 'Xiaomi',
+        slug: 'xiaomi',
+        logoUrl: '/uploads/brands/xiaomi.png',
+        displayOrder: 19,
+        isActive: true,
+    });
+    console.log('[Seeder] Seeded all 19 Brands across Smartphones, Laptops, and Smart TVs.');
     // 4. Smartphone Models & Storage Variants
     const modelsData = [
         // Apple
@@ -135,7 +200,7 @@ async function seedDatabase() {
             name: 'iPhone 15 Pro Max',
             slug: 'iphone-15-pro-max',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iphone-15-pro-max.png',
+            imageUrl: '/uploads/devices/iphone-15-pro-max.png',
             basePrice: 85000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -148,7 +213,7 @@ async function seedDatabase() {
             name: 'iPhone 15 Pro',
             slug: 'iphone-15-pro',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iphone-15-pro.png',
+            imageUrl: '/uploads/devices/iphone-15-pro.png',
             basePrice: 72000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -161,7 +226,7 @@ async function seedDatabase() {
             name: 'iPhone 15',
             slug: 'iphone-15',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iphone-15.png',
+            imageUrl: '/uploads/devices/iphone-15.png',
             basePrice: 52000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -174,7 +239,7 @@ async function seedDatabase() {
             name: 'iPhone 14 Pro',
             slug: 'iphone-14-pro',
             releaseYear: 2022,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iphone-14-pro.png',
+            imageUrl: '/uploads/devices/iphone-14-pro.png',
             basePrice: 62000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -186,7 +251,7 @@ async function seedDatabase() {
             name: 'iPhone 14',
             slug: 'iphone-14',
             releaseYear: 2022,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iphone-14.png',
+            imageUrl: '/uploads/devices/iphone-14.png',
             basePrice: 42000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -199,7 +264,7 @@ async function seedDatabase() {
             name: 'iPhone 13',
             slug: 'iphone-13',
             releaseYear: 2021,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iphone-13.png',
+            imageUrl: '/uploads/devices/iphone-13.png',
             basePrice: 35000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -212,7 +277,7 @@ async function seedDatabase() {
             name: 'Galaxy S24 Ultra',
             slug: 'galaxy-s24-ultra',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/galaxy-s24-ultra.png',
+            imageUrl: '/uploads/devices/galaxy-s24-ultra.png',
             basePrice: 78000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -225,7 +290,7 @@ async function seedDatabase() {
             name: 'Galaxy S24+',
             slug: 'galaxy-s24-plus',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/galaxy-s24-plus.png',
+            imageUrl: '/uploads/devices/galaxy-s24-plus.png',
             basePrice: 58000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -237,7 +302,7 @@ async function seedDatabase() {
             name: 'Galaxy S24',
             slug: 'galaxy-s24',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/galaxy-s24.png',
+            imageUrl: '/uploads/devices/galaxy-s24.png',
             basePrice: 48000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -249,7 +314,7 @@ async function seedDatabase() {
             name: 'Galaxy S23 Ultra',
             slug: 'galaxy-s23-ultra',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/galaxy-s23-ultra.png',
+            imageUrl: '/uploads/devices/galaxy-s23-ultra.png',
             basePrice: 54000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -261,7 +326,7 @@ async function seedDatabase() {
             name: 'Galaxy Z Fold 5',
             slug: 'galaxy-z-fold-5',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/galaxy-z-fold-5.png',
+            imageUrl: '/uploads/devices/galaxy-z-fold-5.png',
             basePrice: 75000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -273,7 +338,7 @@ async function seedDatabase() {
             name: 'Galaxy Z Flip 5',
             slug: 'galaxy-z-flip-5',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/galaxy-z-flip-5.png',
+            imageUrl: '/uploads/devices/galaxy-z-flip-5.png',
             basePrice: 46000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -286,7 +351,7 @@ async function seedDatabase() {
             name: 'Vivo X100 Pro',
             slug: 'vivo-x100-pro',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/vivo-x100-pro.png',
+            imageUrl: '/uploads/devices/vivo-x100-pro.png',
             basePrice: 56000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -298,7 +363,7 @@ async function seedDatabase() {
             name: 'Vivo V30 Pro',
             slug: 'vivo-v30-pro',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/vivo-v30-pro.png',
+            imageUrl: '/uploads/devices/vivo-v30-pro.png',
             basePrice: 34000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -310,7 +375,7 @@ async function seedDatabase() {
             name: 'Vivo V29 5G',
             slug: 'vivo-v29-5g',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/vivo-v29-5g.png',
+            imageUrl: '/uploads/devices/vivo-v29-5g.png',
             basePrice: 24000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -322,7 +387,7 @@ async function seedDatabase() {
             name: 'Vivo T3 5G',
             slug: 'vivo-t3-5g',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/vivo-t3-5g.png',
+            imageUrl: '/uploads/devices/vivo-t3-5g.png',
             basePrice: 17000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -335,7 +400,7 @@ async function seedDatabase() {
             name: 'Find X7 Ultra',
             slug: 'oppo-find-x7-ultra',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/oppo-find-x7-ultra.png',
+            imageUrl: '/uploads/devices/oppo-find-x7-ultra.png',
             basePrice: 59000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -347,7 +412,7 @@ async function seedDatabase() {
             name: 'Reno 11 Pro',
             slug: 'oppo-reno-11-pro',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/oppo-reno-11-pro.png',
+            imageUrl: '/uploads/devices/oppo-reno-11-pro.png',
             basePrice: 31000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -359,7 +424,7 @@ async function seedDatabase() {
             name: 'Oppo F25 Pro 5G',
             slug: 'oppo-f25-pro-5g',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/oppo-f25-pro-5g.png',
+            imageUrl: '/uploads/devices/oppo-f25-pro-5g.png',
             basePrice: 21000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -372,7 +437,7 @@ async function seedDatabase() {
             name: 'Nothing Phone (2)',
             slug: 'nothing-phone-2',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/nothing-phone-2.png',
+            imageUrl: '/uploads/devices/nothing-phone-2.png',
             basePrice: 36000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -385,7 +450,7 @@ async function seedDatabase() {
             name: 'Nothing Phone (2a)',
             slug: 'nothing-phone-2a',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/nothing-phone-2a.png',
+            imageUrl: '/uploads/devices/nothing-phone-2a.png',
             basePrice: 22000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -397,7 +462,7 @@ async function seedDatabase() {
             name: 'Nothing Phone (1)',
             slug: 'nothing-phone-1',
             releaseYear: 2022,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/nothing-phone-1.png',
+            imageUrl: '/uploads/devices/nothing-phone-1.png',
             basePrice: 19000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -410,7 +475,7 @@ async function seedDatabase() {
             name: 'Redmi Note 13 Pro+ 5G',
             slug: 'redmi-note-13-pro-plus',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/redmi-note-13-pro-plus.png',
+            imageUrl: '/uploads/devices/redmi-note-13-pro-plus.png',
             basePrice: 28000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -422,7 +487,7 @@ async function seedDatabase() {
             name: 'Redmi Note 13 Pro',
             slug: 'redmi-note-13-pro',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/redmi-note-13-pro.png',
+            imageUrl: '/uploads/devices/redmi-note-13-pro.png',
             basePrice: 22000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -434,7 +499,7 @@ async function seedDatabase() {
             name: 'Redmi 13C 5G',
             slug: 'redmi-13c-5g',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/redmi-13c-5g.png',
+            imageUrl: '/uploads/devices/redmi-13c-5g.png',
             basePrice: 11000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -447,7 +512,7 @@ async function seedDatabase() {
             name: 'Realme 12 Pro+ 5G',
             slug: 'realme-12-pro-plus',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/realme-12-pro-plus.png',
+            imageUrl: '/uploads/devices/realme-12-pro-plus.png',
             basePrice: 26000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -459,7 +524,7 @@ async function seedDatabase() {
             name: 'Realme GT 6T',
             slug: 'realme-gt-6t',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/realme-gt-6t.png',
+            imageUrl: '/uploads/devices/realme-gt-6t.png',
             basePrice: 29000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -471,7 +536,7 @@ async function seedDatabase() {
             name: 'Realme Narzo 70 Pro',
             slug: 'realme-narzo-70-pro',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/realme-narzo-70-pro.png',
+            imageUrl: '/uploads/devices/realme-narzo-70-pro.png',
             basePrice: 18000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -484,7 +549,7 @@ async function seedDatabase() {
             name: 'iQOO 12 5G',
             slug: 'iqoo-12-5g',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iqoo-12-5g.png',
+            imageUrl: '/uploads/devices/iqoo-12-5g.png',
             basePrice: 46000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -496,7 +561,7 @@ async function seedDatabase() {
             name: 'iQOO Neo 9 Pro',
             slug: 'iqoo-neo-9-pro',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iqoo-neo-9-pro.png',
+            imageUrl: '/uploads/devices/iqoo-neo-9-pro.png',
             basePrice: 32000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -508,7 +573,7 @@ async function seedDatabase() {
             name: 'iQOO Z9 5G',
             slug: 'iqoo-z9-5g',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/iqoo-z9-5g.png',
+            imageUrl: '/uploads/devices/iqoo-z9-5g.png',
             basePrice: 17000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -521,7 +586,7 @@ async function seedDatabase() {
             name: 'OnePlus 12',
             slug: 'oneplus-12',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/oneplus-12.png',
+            imageUrl: '/uploads/devices/oneplus-12.png',
             basePrice: 46000,
             variants: [
                 { capacity: '256GB', priceModifier: 0 },
@@ -533,7 +598,7 @@ async function seedDatabase() {
             name: 'OnePlus 12R',
             slug: 'oneplus-12r',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/oneplus-12r.png',
+            imageUrl: '/uploads/devices/oneplus-12r.png',
             basePrice: 34000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -545,7 +610,7 @@ async function seedDatabase() {
             name: 'OnePlus Nord 4',
             slug: 'oneplus-nord-4',
             releaseYear: 2024,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/oneplus-nord-4.png',
+            imageUrl: '/uploads/devices/oneplus-nord-4.png',
             basePrice: 27000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -558,7 +623,7 @@ async function seedDatabase() {
             name: 'Pixel 8 Pro',
             slug: 'pixel-8-pro',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/pixel-8-pro.png',
+            imageUrl: '/uploads/devices/pixel-8-pro.png',
             basePrice: 52000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -571,7 +636,7 @@ async function seedDatabase() {
             name: 'Pixel 8',
             slug: 'pixel-8',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/pixel-8.png',
+            imageUrl: '/uploads/devices/pixel-8.png',
             basePrice: 39000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
@@ -583,10 +648,353 @@ async function seedDatabase() {
             name: 'Pixel 7a',
             slug: 'pixel-7a',
             releaseYear: 2023,
-            imageUrl: 'https://pub-ebb60884050ceb5a3565e132a7ef9394.r2.dev/revoo/uploads/devices/pixel-7a.png',
+            imageUrl: '/uploads/devices/pixel-7a.png',
             basePrice: 26000,
             variants: [
                 { capacity: '128GB', priceModifier: 0 },
+            ],
+        },
+        // LAPTOPS - Apple MacBooks
+        {
+            brandId: apple._id,
+            name: 'MacBook Pro 16" M3 Max',
+            slug: 'macbook-pro-16-m3-max',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/apple.png',
+            basePrice: 165000,
+            variants: [
+                { capacity: '512GB SSD / 36GB RAM', priceModifier: 0 },
+                { capacity: '1TB SSD / 48GB RAM', priceModifier: 24000 },
+                { capacity: '2TB SSD / 96GB RAM', priceModifier: 48000 },
+            ],
+        },
+        {
+            brandId: apple._id,
+            name: 'MacBook Pro 14" M3 Pro',
+            slug: 'macbook-pro-14-m3-pro',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/apple.png',
+            basePrice: 125000,
+            variants: [
+                { capacity: '512GB SSD / 18GB RAM', priceModifier: 0 },
+                { capacity: '1TB SSD / 36GB RAM', priceModifier: 20000 },
+            ],
+        },
+        {
+            brandId: apple._id,
+            name: 'MacBook Air 15" M2',
+            slug: 'macbook-air-15-m2',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/apple.png',
+            basePrice: 78000,
+            variants: [
+                { capacity: '256GB SSD', priceModifier: 0 },
+                { capacity: '512GB SSD', priceModifier: 12000 },
+            ],
+        },
+        {
+            brandId: apple._id,
+            name: 'MacBook Air 13" M2',
+            slug: 'macbook-air-13-m2',
+            releaseYear: 2022,
+            imageUrl: '/uploads/brands/apple.png',
+            basePrice: 62000,
+            variants: [
+                { capacity: '256GB SSD', priceModifier: 0 },
+                { capacity: '512GB SSD', priceModifier: 10000 },
+            ],
+        },
+        {
+            brandId: apple._id,
+            name: 'MacBook Air 13" M1',
+            slug: 'macbook-air-13-m1',
+            releaseYear: 2020,
+            imageUrl: '/uploads/brands/apple.png',
+            basePrice: 48000,
+            variants: [
+                { capacity: '256GB SSD', priceModifier: 0 },
+                { capacity: '512GB SSD', priceModifier: 8000 },
+            ],
+        },
+        // LAPTOPS - Dell
+        {
+            brandId: dell._id,
+            name: 'Dell XPS 15 OLED (9530)',
+            slug: 'dell-xps-15',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/dell.png',
+            basePrice: 85000,
+            variants: [
+                { capacity: '512GB SSD / 16GB RAM', priceModifier: 0 },
+                { capacity: '1TB SSD / 32GB RAM', priceModifier: 14000 },
+            ],
+        },
+        {
+            brandId: dell._id,
+            name: 'Dell Alienware m16 R2 Gaming',
+            slug: 'dell-alienware-m16',
+            releaseYear: 2024,
+            imageUrl: '/uploads/brands/dell.png',
+            basePrice: 95000,
+            variants: [
+                { capacity: '1TB SSD / 32GB RAM / RTX 4070', priceModifier: 0 },
+                { capacity: '2TB SSD / 64GB RAM / RTX 4080', priceModifier: 22000 },
+            ],
+        },
+        {
+            brandId: dell._id,
+            name: 'Dell Inspiron 16 Plus',
+            slug: 'dell-inspiron-16',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/dell.png',
+            basePrice: 42000,
+            variants: [
+                { capacity: '512GB SSD', priceModifier: 0 },
+                { capacity: '1TB SSD', priceModifier: 6000 },
+            ],
+        },
+        // LAPTOPS - HP
+        {
+            brandId: hp._id,
+            name: 'HP Spectre x360 14 OLED',
+            slug: 'hp-spectre-14',
+            releaseYear: 2024,
+            imageUrl: '/uploads/brands/hp.png',
+            basePrice: 72000,
+            variants: [
+                { capacity: '512GB SSD / 16GB RAM', priceModifier: 0 },
+                { capacity: '1TB SSD / 32GB RAM', priceModifier: 12000 },
+            ],
+        },
+        {
+            brandId: hp._id,
+            name: 'HP OMEN 16 Gaming Laptop',
+            slug: 'hp-omen-16',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/hp.png',
+            basePrice: 68000,
+            variants: [
+                { capacity: '1TB SSD / 16GB RAM / RTX 4060', priceModifier: 0 },
+            ],
+        },
+        // LAPTOPS - Lenovo
+        {
+            brandId: lenovo._id,
+            name: 'ThinkPad X1 Carbon Gen 11',
+            slug: 'thinkpad-x1-gen11',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/lenovo.png',
+            basePrice: 68000,
+            variants: [
+                { capacity: '512GB SSD / 16GB RAM', priceModifier: 0 },
+                { capacity: '1TB SSD / 32GB RAM', priceModifier: 12000 },
+            ],
+        },
+        {
+            brandId: lenovo._id,
+            name: 'Lenovo Legion Pro 5 Gen 8',
+            slug: 'lenovo-legion-pro-5',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/lenovo.png',
+            basePrice: 64000,
+            variants: [
+                { capacity: '1TB SSD / RTX 4070', priceModifier: 0 },
+            ],
+        },
+        // LAPTOPS - ASUS
+        {
+            brandId: asus._id,
+            name: 'ROG Zephyrus G14 (2024)',
+            slug: 'asus-rog-g14',
+            releaseYear: 2024,
+            imageUrl: '/uploads/brands/asus.png',
+            basePrice: 78000,
+            variants: [
+                { capacity: '1TB SSD / OLED / RTX 4060', priceModifier: 0 },
+                { capacity: '1TB SSD / OLED / RTX 4070', priceModifier: 14000 },
+            ],
+        },
+        {
+            brandId: asus._id,
+            name: 'ZenBook 14 OLED (UX3405)',
+            slug: 'asus-zenbook-14',
+            releaseYear: 2024,
+            imageUrl: '/uploads/brands/asus.png',
+            basePrice: 52000,
+            variants: [
+                { capacity: '512GB SSD', priceModifier: 0 },
+                { capacity: '1TB SSD', priceModifier: 8000 },
+            ],
+        },
+        // LAPTOPS - Acer
+        {
+            brandId: acer._id,
+            name: 'Predator Helios 16 Gaming',
+            slug: 'acer-predator-helios-16',
+            releaseYear: 2024,
+            imageUrl: '/uploads/brands/acer.png',
+            basePrice: 75000,
+            variants: [
+                { capacity: '1TB SSD / RTX 4070', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: acer._id,
+            name: 'Swift Go 14 OLED',
+            slug: 'acer-swift-go-14',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/acer.png',
+            basePrice: 42000,
+            variants: [
+                { capacity: '512GB SSD', priceModifier: 0 },
+            ],
+        },
+        // SMART TVS - Sony
+        {
+            brandId: sony._id,
+            name: 'Sony Bravia XR 65" 4K OLED (A80L)',
+            slug: 'sony-bravia-65-oled',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/sony.png',
+            basePrice: 95000,
+            variants: [
+                { capacity: '65-inch 4K OLED 120Hz', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: sony._id,
+            name: 'Sony Bravia 55" 4K Google TV (X80L)',
+            slug: 'sony-bravia-55-4k',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/sony.png',
+            basePrice: 58000,
+            variants: [
+                { capacity: '55-inch 4K HDR', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: sony._id,
+            name: 'Sony Bravia 43" 4K HDR (X74L)',
+            slug: 'sony-bravia-43-4k',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/sony.png',
+            basePrice: 38000,
+            variants: [
+                { capacity: '43-inch 4K Google TV', priceModifier: 0 },
+            ],
+        },
+        // SMART TVS - Samsung
+        {
+            brandId: samsung._id,
+            name: 'Samsung Neo QLED 65" 4K (QN90C)',
+            slug: 'samsung-neo-qled-65',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/samsung.png',
+            basePrice: 88000,
+            variants: [
+                { capacity: '65-inch Neo QLED 120Hz', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: samsung._id,
+            name: 'Samsung The Frame 55" 4K QLED',
+            slug: 'samsung-the-frame-55',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/samsung.png',
+            basePrice: 56000,
+            variants: [
+                { capacity: '55-inch Matte Display', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: samsung._id,
+            name: 'Samsung Crystal UHD 43" 4K (CU8000)',
+            slug: 'samsung-crystal-uhd-43',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/samsung.png',
+            basePrice: 28000,
+            variants: [
+                { capacity: '43-inch 4K HDR10+', priceModifier: 0 },
+            ],
+        },
+        // SMART TVS - LG
+        {
+            brandId: lg._id,
+            name: 'LG OLED evo C3 65" 4K Cinema',
+            slug: 'lg-oled-c3-65',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/lg.png',
+            basePrice: 92000,
+            variants: [
+                { capacity: '65-inch OLED evo 120Hz', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: lg._id,
+            name: 'LG OLED B3 55" 4K Smart TV',
+            slug: 'lg-oled-b3-55',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/lg.png',
+            basePrice: 62000,
+            variants: [
+                { capacity: '55-inch OLED 120Hz', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: lg._id,
+            name: 'LG UHD AI ThinQ 43" 4K (UR7500)',
+            slug: 'lg-uhd-thinq-43',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/lg.png',
+            basePrice: 26000,
+            variants: [
+                { capacity: '43-inch 4K webOS', priceModifier: 0 },
+            ],
+        },
+        // SMART TVS - Xiaomi
+        {
+            brandId: xiaomi._id,
+            name: 'Xiaomi Smart TV X Pro 55" 4K Dolby Vision',
+            slug: 'xiaomi-tv-x-pro-55',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/xiaomi.png',
+            basePrice: 32000,
+            variants: [
+                { capacity: '55-inch 4K Dolby Vision IQ', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: xiaomi._id,
+            name: 'Xiaomi Smart TV X 43" 4K',
+            slug: 'xiaomi-tv-x-43',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/xiaomi.png',
+            basePrice: 22000,
+            variants: [
+                { capacity: '43-inch 4K HDR10', priceModifier: 0 },
+            ],
+        },
+        // SMART TVS - TCL
+        {
+            brandId: tcl._id,
+            name: 'TCL 55" Mini-LED 4K Google TV (C755)',
+            slug: 'tcl-55-mini-led',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/tcl.png',
+            basePrice: 36000,
+            variants: [
+                { capacity: '55-inch 144Hz VRR Mini-LED', priceModifier: 0 },
+            ],
+        },
+        {
+            brandId: tcl._id,
+            name: 'TCL 43" Metallic Bezel-less 4K (43V6B)',
+            slug: 'tcl-43-metallic-4k',
+            releaseYear: 2023,
+            imageUrl: '/uploads/brands/tcl.png',
+            basePrice: 19000,
+            variants: [
+                { capacity: '43-inch 4K Google TV', priceModifier: 0 },
             ],
         },
     ];
