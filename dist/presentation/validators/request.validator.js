@@ -4,7 +4,7 @@ exports.enquirySchema = exports.initiateReturnSchema = exports.recordPaymentSche
 const zod_1 = require("zod");
 const types_js_1 = require("../../shared/types.js");
 exports.calculateEstimateSchema = zod_1.z.object({
-    modelId: zod_1.z.string().min(24, 'Invalid Model ID'),
+    modelId: zod_1.z.string().min(1, 'Model ID is required'),
     variantId: zod_1.z.string().optional(),
     displayCondition: zod_1.z.enum(['FLAWLESS', 'MINOR_SCRATCHES', 'DEEP_SCRATCHES', 'CRACKED_GLASS', 'BROKEN_OR_DEAD_PIXELS']),
     bodyCondition: zod_1.z.enum(['FLAWLESS', 'MINOR_SIGNS_OF_USE', 'DENTED_OR_SCRATCHED', 'BENT_OR_CRACKED_BACK']),
@@ -21,7 +21,7 @@ exports.calculateEstimateSchema = zod_1.z.object({
     hasOriginalCharger: zod_1.z.boolean().default(false),
 });
 exports.submitRequestSchema = zod_1.z.object({
-    modelId: zod_1.z.string().min(24, 'Invalid Model ID'),
+    modelId: zod_1.z.string().min(1, 'Model ID is required'),
     variantId: zod_1.z.string().optional(),
     declaredCondition: zod_1.z.object({
         displayCondition: zod_1.z.enum(['FLAWLESS', 'MINOR_SCRATCHES', 'DEEP_SCRATCHES', 'CRACKED_GLASS', 'BROKEN_OR_DEAD_PIXELS']),

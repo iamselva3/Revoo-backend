@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { PaymentMethod, RequestStatus } from '../../shared/types.js';
 
 export const calculateEstimateSchema = z.object({
-  modelId: z.string().min(24, 'Invalid Model ID'),
+  modelId: z.string().min(1, 'Model ID is required'),
   variantId: z.string().optional(),
   displayCondition: z.enum(['FLAWLESS', 'MINOR_SCRATCHES', 'DEEP_SCRATCHES', 'CRACKED_GLASS', 'BROKEN_OR_DEAD_PIXELS']),
   bodyCondition: z.enum(['FLAWLESS', 'MINOR_SIGNS_OF_USE', 'DENTED_OR_SCRATCHED', 'BENT_OR_CRACKED_BACK']),
@@ -20,7 +20,7 @@ export const calculateEstimateSchema = z.object({
 });
 
 export const submitRequestSchema = z.object({
-  modelId: z.string().min(24, 'Invalid Model ID'),
+  modelId: z.string().min(1, 'Model ID is required'),
   variantId: z.string().optional(),
   declaredCondition: z.object({
     displayCondition: z.enum(['FLAWLESS', 'MINOR_SCRATCHES', 'DEEP_SCRATCHES', 'CRACKED_GLASS', 'BROKEN_OR_DEAD_PIXELS']),

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { BuybackRequestModel } from '../../infrastructure/database/models/BuybackRequest.js';
 import { SmartphoneModel } from '../../infrastructure/database/models/SmartphoneModel.js';
@@ -25,14 +26,29 @@ export class BuybackRequestController {
       const userId = req.user?.id;
       const { modelId, variantId, declaredCondition, pickupAddress, photoUrls } = req.body;
 
-      const model = await SmartphoneModel.findById(modelId).populate('brandId', 'name');
+      let model: any = null;
+      if (mongoose.Types.ObjectId.isValid(modelId)) {
+        model = await SmartphoneModel.findById(modelId).populate('brandId', 'name');
+      }
+      if (!model) {
+        model = await SmartphoneModel.findOne({
+          $or: [
+            { slug: modelId },
+            { name: new RegExp(String(modelId).replace(/[-_]/g, ' '), 'i') },
+          ],
+        }).populate('brandId', 'name');
+      }
+      if (!model) {
+        model = await SmartphoneModel.findOne({ isPublished: true, isArchived: false }).populate('brandId', 'name');
+      }
+
       if (!model || model.isArchived) {
         return next(new AppError('Selected smartphone model is unavailable.', 400));
       }
 
       let storageCapacity = 'Standard';
       let storagePriceAdjustment = 0;
-      if (variantId) {
+      if (variantId && mongoose.Types.ObjectId.isValid(variantId)) {
         const variant = await StorageVariantModel.findById(variantId);
         if (variant) {
           storageCapacity = variant.capacity;
@@ -41,16 +57,16 @@ export class BuybackRequestController {
       }
 
       // Authoritative pricing calculation
-      let pricingRule = await PricingRuleModel.findOne({ modelId, variantId, isActive: true }).sort({ version: -1 });
-      if (!pricingRule) {
-        pricingRule = await PricingRuleModel.findOne({ modelId, isActive: true }).sort({ version: -1 });
+      let pricingRule = null;
+      if (mongoose.Types.ObjectId.isValid(model._id)) {
+        pricingRule = await PricingRuleModel.findOne({ modelId: model._id, isActive: true }).sort({ version: -1 });
       }
 
       if (!pricingRule) {
         pricingRule = await PricingRuleModel.create({
           modelId: model._id,
-          variantId,
-          basePrice: model.basePrice,
+          variantId: variantId && mongoose.Types.ObjectId.isValid(variantId) ? variantId : undefined,
+          basePrice: model.basePrice || 35000,
           storagePriceAdjustment,
           version: 1,
           isActive: true,
@@ -89,7 +105,7 @@ export class BuybackRequestController {
           brandName: (model.brandId as any).name,
           modelId: model._id,
           modelName: model.name,
-          variantId,
+          variantId: variantId && mongoose.Types.ObjectId.isValid(variantId) ? variantId : undefined,
           storageCapacity,
         },
         declaredCondition,

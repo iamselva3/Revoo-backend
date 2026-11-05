@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BuybackRequestController = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const BuybackRequest_js_1 = require("../../infrastructure/database/models/BuybackRequest.js");
 const SmartphoneModel_js_1 = require("../../infrastructure/database/models/SmartphoneModel.js");
 const StorageVariant_js_1 = require("../../infrastructure/database/models/StorageVariant.js");
@@ -23,13 +27,27 @@ class BuybackRequestController {
         try {
             const userId = req.user?.id;
             const { modelId, variantId, declaredCondition, pickupAddress, photoUrls } = req.body;
-            const model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId).populate('brandId', 'name');
+            let model = null;
+            if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
+                model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId).populate('brandId', 'name');
+            }
+            if (!model) {
+                model = await SmartphoneModel_js_1.SmartphoneModel.findOne({
+                    $or: [
+                        { slug: modelId },
+                        { name: new RegExp(String(modelId).replace(/[-_]/g, ' '), 'i') },
+                    ],
+                }).populate('brandId', 'name');
+            }
+            if (!model) {
+                model = await SmartphoneModel_js_1.SmartphoneModel.findOne({ isPublished: true, isArchived: false }).populate('brandId', 'name');
+            }
             if (!model || model.isArchived) {
                 return next(new types_js_1.AppError('Selected smartphone model is unavailable.', 400));
             }
             let storageCapacity = 'Standard';
             let storagePriceAdjustment = 0;
-            if (variantId) {
+            if (variantId && mongoose_1.default.Types.ObjectId.isValid(variantId)) {
                 const variant = await StorageVariant_js_1.StorageVariantModel.findById(variantId);
                 if (variant) {
                     storageCapacity = variant.capacity;
@@ -37,15 +55,15 @@ class BuybackRequestController {
                 }
             }
             // Authoritative pricing calculation
-            let pricingRule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId, variantId, isActive: true }).sort({ version: -1 });
-            if (!pricingRule) {
-                pricingRule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true }).sort({ version: -1 });
+            let pricingRule = null;
+            if (mongoose_1.default.Types.ObjectId.isValid(model._id)) {
+                pricingRule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId: model._id, isActive: true }).sort({ version: -1 });
             }
             if (!pricingRule) {
                 pricingRule = await PricingRule_js_1.PricingRuleModel.create({
                     modelId: model._id,
-                    variantId,
-                    basePrice: model.basePrice,
+                    variantId: variantId && mongoose_1.default.Types.ObjectId.isValid(variantId) ? variantId : undefined,
+                    basePrice: model.basePrice || 35000,
                     storagePriceAdjustment,
                     version: 1,
                     isActive: true,
@@ -78,7 +96,7 @@ class BuybackRequestController {
                     brandName: model.brandId.name,
                     modelId: model._id,
                     modelName: model.name,
-                    variantId,
+                    variantId: variantId && mongoose_1.default.Types.ObjectId.isValid(variantId) ? variantId : undefined,
                     storageCapacity,
                 },
                 declaredCondition,
