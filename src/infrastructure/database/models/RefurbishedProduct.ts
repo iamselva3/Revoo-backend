@@ -20,6 +20,7 @@ export interface IRefurbishedProductDocument extends Document {
   offerTag?: string;
   warrantyMonths: number;
   imageUrl: string;
+  galleryImages?: string[];
   inspectionScore: number;
   inStock: boolean;
   isFeatured: boolean;
@@ -43,6 +44,7 @@ const RefurbishedProductSchema = new Schema<IRefurbishedProductDocument>(
     offerTag: { type: String, default: '' },
     warrantyMonths: { type: Number, default: 12 },
     imageUrl: { type: String, required: true },
+    galleryImages: [{ type: String }],
     inspectionScore: { type: Number, default: 98 },
     inStock: { type: Boolean, default: true, index: true },
     isFeatured: { type: Boolean, default: true },
