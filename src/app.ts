@@ -11,6 +11,9 @@ import { AppError } from './shared/types.js';
 
 const app = express();
 
+// Trust reverse proxies (Render, Cloudflare, load balancers) for accurate client IP & rate limiting
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }

@@ -14,6 +14,8 @@ const errorHandler_middleware_js_1 = require("./presentation/middlewares/errorHa
 const rateLimiter_middleware_js_1 = require("./presentation/middlewares/rateLimiter.middleware.js");
 const types_js_1 = require("./shared/types.js");
 const app = (0, express_1.default)();
+// Trust reverse proxies (Render, Cloudflare, load balancers) for accurate client IP & rate limiting
+app.set('trust proxy', 1);
 // Security headers
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
