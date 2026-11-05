@@ -827,12 +827,12 @@ export class CatalogueController {
       }
 
       let product: any = null;
-      if (mongoose.Types.ObjectId.isValid(id)) {
+      if (id && mongoose.Types.ObjectId.isValid(id)) {
         product = await RefurbishedProductModel.findByIdAndUpdate(id, { $set: payload }, { new: true });
       }
-      if (!product) {
+      if (!product && id) {
         product = await RefurbishedProductModel.findOneAndUpdate(
-          { $or: [{ _id: id }, { id: id }, { name: id }] },
+          { $or: [{ name: new RegExp(`^${id}$`, 'i') }, { offerTag: id }] },
           { $set: payload },
           { new: true }
         );
@@ -851,12 +851,12 @@ export class CatalogueController {
     try {
       const { id } = req.params;
       let product: any = null;
-      if (mongoose.Types.ObjectId.isValid(id)) {
+      if (id && mongoose.Types.ObjectId.isValid(id)) {
         product = await RefurbishedProductModel.findByIdAndDelete(id);
       }
-      if (!product) {
+      if (!product && id) {
         product = await RefurbishedProductModel.findOneAndDelete({
-          $or: [{ _id: id }, { id: id }, { name: id }],
+          $or: [{ name: new RegExp(`^${id}$`, 'i') }, { offerTag: id }],
         });
       }
       if (!product) {

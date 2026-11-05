@@ -787,11 +787,11 @@ class CatalogueController {
                 payload.discountPercentage = Math.max(0, Math.round(((payload.originalPrice - payload.salePrice) / payload.originalPrice) * 100));
             }
             let product = null;
-            if (mongoose_1.default.Types.ObjectId.isValid(id)) {
+            if (id && mongoose_1.default.Types.ObjectId.isValid(id)) {
                 product = await RefurbishedProduct_js_1.RefurbishedProductModel.findByIdAndUpdate(id, { $set: payload }, { new: true });
             }
-            if (!product) {
-                product = await RefurbishedProduct_js_1.RefurbishedProductModel.findOneAndUpdate({ $or: [{ _id: id }, { id: id }, { name: id }] }, { $set: payload }, { new: true });
+            if (!product && id) {
+                product = await RefurbishedProduct_js_1.RefurbishedProductModel.findOneAndUpdate({ $or: [{ name: new RegExp(`^${id}$`, 'i') }, { offerTag: id }] }, { $set: payload }, { new: true });
             }
             if (!product) {
                 return res.status(404).json({ success: false, message: 'Certified phone not found.' });
@@ -806,12 +806,12 @@ class CatalogueController {
         try {
             const { id } = req.params;
             let product = null;
-            if (mongoose_1.default.Types.ObjectId.isValid(id)) {
+            if (id && mongoose_1.default.Types.ObjectId.isValid(id)) {
                 product = await RefurbishedProduct_js_1.RefurbishedProductModel.findByIdAndDelete(id);
             }
-            if (!product) {
+            if (!product && id) {
                 product = await RefurbishedProduct_js_1.RefurbishedProductModel.findOneAndDelete({
-                    $or: [{ _id: id }, { id: id }, { name: id }],
+                    $or: [{ name: new RegExp(`^${id}$`, 'i') }, { offerTag: id }],
                 });
             }
             if (!product) {
