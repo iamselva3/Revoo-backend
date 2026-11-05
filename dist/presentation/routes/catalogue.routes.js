@@ -13,6 +13,7 @@ router.get('/models/:modelId', CatalogueController_js_1.CatalogueController.getM
 router.post('/estimate', CatalogueController_js_1.CatalogueController.calculateIndicativeEstimate);
 router.get('/refurbished', CatalogueController_js_1.CatalogueController.getRefurbishedProducts);
 router.get('/reviews', CatalogueController_js_1.CatalogueController.getCustomerReviews);
+router.post('/orders', CatalogueController_js_1.CatalogueController.createOrderInvoice);
 // Admin catalogue & marketing management
 router.get('/admin/banners', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListBanners);
 router.post('/admin/banners', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateBanner);
@@ -27,8 +28,10 @@ router.put('/admin/categories/:id', auth_middleware_js_1.authenticateAdmin, Cata
 router.get('/admin/models', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListModels);
 router.post('/admin/models', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateModel);
 router.put('/admin/models/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminUpdateModel);
+router.delete('/admin/models/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminDeleteModel);
 router.delete('/admin/models/:id/archive', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminArchiveModel);
 router.post('/admin/models/:id/variants', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateVariant);
 router.post('/admin/refurbished', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateRefurbishedProduct);
+router.get('/admin/invoices', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListInvoices);
 exports.default = router;
 //# sourceMappingURL=catalogue.routes.js.map

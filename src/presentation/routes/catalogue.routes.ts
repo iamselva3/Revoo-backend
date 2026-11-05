@@ -13,6 +13,7 @@ router.get('/models/:modelId', CatalogueController.getModelDetails);
 router.post('/estimate', CatalogueController.calculateIndicativeEstimate);
 router.get('/refurbished', CatalogueController.getRefurbishedProducts);
 router.get('/reviews', CatalogueController.getCustomerReviews);
+router.post('/orders', CatalogueController.createOrderInvoice);
 
 // Admin catalogue & marketing management
 router.get('/admin/banners', authenticateAdmin, CatalogueController.adminListBanners);
@@ -31,10 +32,13 @@ router.put('/admin/categories/:id', authenticateAdmin, CatalogueController.admin
 router.get('/admin/models', authenticateAdmin, CatalogueController.adminListModels);
 router.post('/admin/models', authenticateAdmin, CatalogueController.adminCreateModel);
 router.put('/admin/models/:id', authenticateAdmin, CatalogueController.adminUpdateModel);
+router.delete('/admin/models/:id', authenticateAdmin, CatalogueController.adminDeleteModel);
 router.delete('/admin/models/:id/archive', authenticateAdmin, CatalogueController.adminArchiveModel);
 
 router.post('/admin/models/:id/variants', authenticateAdmin, CatalogueController.adminCreateVariant);
 router.post('/admin/refurbished', authenticateAdmin, CatalogueController.adminCreateRefurbishedProduct);
+
+router.get('/admin/invoices', authenticateAdmin, CatalogueController.adminListInvoices);
 
 export default router;
 
