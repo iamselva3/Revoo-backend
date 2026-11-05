@@ -52,13 +52,13 @@ export class CatalogueController {
 
       if (category) {
         const catStr = (category as string).toLowerCase();
-        if (catStr === 'mobile' || catStr === 'phones') {
-          filterQuery.name = { $not: /(macbook|laptop|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia)/i };
-        } else if (catStr === 'laptops') {
+        if (catStr === 'mobile' || catStr === 'phones' || catStr === 'phone') {
+          filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|air|pro 1[46])/i };
+        } else if (catStr === 'laptops' || catStr === 'laptop' || catStr === 'macbook' || catStr === 'macbooks') {
           filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift|air|pro 1[46])/i };
-        } else if (catStr === 'tablets') {
+        } else if (catStr === 'tablets' || catStr === 'tablet' || catStr === 'ipad' || catStr === 'ipads') {
           filterQuery.name = { $regex: /(ipad|tab|pad)/i };
-        } else if (catStr === 'tv') {
+        } else if (catStr === 'tv' || catStr === 'tvs' || catStr === 'smart_tv') {
           filterQuery.name = { $regex: /(tv|bravia|oled|qled|crystal|uhd)/i };
         }
       }

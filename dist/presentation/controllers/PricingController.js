@@ -1,9 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PricingController = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const PricingRule_js_1 = require("../../infrastructure/database/models/PricingRule.js");
 const PricingHistory_js_1 = require("../../infrastructure/database/models/PricingHistory.js");
-const types_js_1 = require("../../shared/types.js");
+const SmartphoneModel_js_1 = require("../../infrastructure/database/models/SmartphoneModel.js");
 const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
 class PricingController {
     static async getPricingRuleForModel(req, res, next) {
@@ -13,9 +17,36 @@ class PricingController {
             const query = { modelId, isActive: true };
             if (variantId)
                 query.variantId = variantId;
-            const rule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
+            let rule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
             if (!rule) {
-                return next(new types_js_1.AppError('No active pricing rule found for this model/variant.', 404));
+                rule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true }).sort({ version: -1 });
+            }
+            if (!rule) {
+                let model = null;
+                if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
+                    model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId);
+                }
+                if (!model) {
+                    model = await SmartphoneModel_js_1.SmartphoneModel.findOne({ slug: modelId });
+                }
+                const modelBasePrice = model?.basePrice || 45000;
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        modelId,
+                        basePrice: modelBasePrice,
+                        storagePriceAdjustment: 0,
+                        version: 1,
+                        isActive: true,
+                        deductions: {
+                            display: { FLAWLESS: 0, MINOR_SCRATCHES: 1000, DEEP_SCRATCHES: 2500, CRACKED_GLASS: 4500, BROKEN_OR_DEAD_PIXELS: 7000 },
+                            body: { FLAWLESS: 0, MINOR_SIGNS_OF_USE: 500, DENTED_OR_SCRATCHED: 1500, BENT_OR_CRACKED_BACK: 3500 },
+                            battery: { EXCELLENT: 0, GOOD: 800, DEGRADED: 2000 },
+                            functional: { frontCameraFaulty: 1500, backCameraFaulty: 2500, faceIdOrFingerprintFaulty: 2000, speakerOrMicFaulty: 1000, chargingPortFaulty: 1200, wirelessOrBluetoothFaulty: 1500 },
+                            accessoriesBonus: { hasOriginalBox: 500, hasOriginalCharger: 500 },
+                        },
+                    },
+                });
             }
             res.status(200).json({ success: true, data: rule });
         }
