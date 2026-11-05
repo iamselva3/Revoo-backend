@@ -4,6 +4,7 @@ import { connectDatabase } from './infrastructure/database/connection.js';
 import { AdminUserModel } from './infrastructure/database/models/AdminUser.js';
 import { seedDatabase } from './infrastructure/database/seeds/seed.js';
 import { seedGeoDataIfNeeded } from './infrastructure/database/seeds/geoSeed.js';
+import { seedEmployeesIfNeeded } from './infrastructure/database/seeds/employeeSeed.js';
 
 async function bootstrap() {
   try {
@@ -23,6 +24,9 @@ async function bootstrap() {
 
       // Ensure India States, Cities, and Pincodes are seeded in DB
       await seedGeoDataIfNeeded();
+
+      // Ensure Collection Partners & Employees are seeded across Tamil Nadu
+      await seedEmployeesIfNeeded();
     } catch (seedErr) {
       console.error('[REVOO Server] Error verifying/seeding database:', seedErr);
     }
