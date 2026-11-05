@@ -48,3 +48,4 @@ const InvoiceSchema = new Schema<IInvoiceDocument>(
 );
 
 export const InvoiceModel = mongoose.model<IInvoiceDocument>('Invoice', InvoiceSchema);
+

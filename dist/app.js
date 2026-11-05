@@ -33,6 +33,16 @@ app.use((0, cors_1.default)({
     },
     credentials: true,
 }));
+// UptimeRobot & Service Health Check (exempt from rate limits for 24/7 monitoring)
+app.get(['/health', '/'], (req, res) => {
+    res.status(200).json({
+        status: 'HEALTHY',
+        service: 'REVOO Backend API',
+        timestamp: new Date().toISOString(),
+        uptimeSeconds: Math.floor(process.uptime()),
+        environment: index_js_1.config.nodeEnv,
+    });
+});
 // Rate limiting
 app.use(rateLimiter_middleware_js_1.globalLimiter);
 // Request body parsers
