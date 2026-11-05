@@ -93,55 +93,208 @@ class CatalogueController {
     }
     static async calculateIndicativeEstimate(req, res, next) {
         try {
-            const { modelId, variantId, displayCondition, bodyCondition, batteryHealth, functionalFaults, hasOriginalBox, hasOriginalCharger, } = req.body;
-            // Single source of truth: fetch active pricing rule configured by admin
-            const query = { modelId, isActive: true };
+            const { modelId, variantId, modelName, brandName, basePrice: customBasePrice, displayCondition = 'FLAWLESS', bodyCondition = 'FLAWLESS', batteryHealth = 'ABOVE_85', functionalFaults = {}, hasOriginalBox = false, hasOriginalCharger = false, } = req.body;
+            let pricingRule = null;
+            let modelDoc = null;
+            let effectiveBasePrice = typeof customBasePrice === 'number' && customBasePrice > 0 ? customBasePrice : 0;
+            let storageModifier = 0;
+            // 1. Resolve modelDoc & real model ObjectId if possible
+            if (modelId) {
+                if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
+                    modelDoc = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId);
+                }
+                else {
+                    modelDoc = await SmartphoneModel_js_1.SmartphoneModel.findOne({
+                        $or: [
+                            { slug: modelId },
+                            { name: new RegExp(`^${modelId}$`, 'i') },
+                            ...(modelName ? [{ name: new RegExp(`^${modelName}$`, 'i') }] : []),
+                        ],
+                    });
+                }
+            }
+            if (modelDoc) {
+                effectiveBasePrice = effectiveBasePrice || modelDoc.basePrice;
+            }
+            // 2. Resolve variant & storage modifier if provided
             if (variantId) {
-                query.variantId = variantId;
-            }
-            let pricingRule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
-            // Fallback to model-level pricing rule if variant-specific rule is not explicitly set
-            if (!pricingRule) {
-                pricingRule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true }).sort({ version: -1 });
-            }
-            if (!pricingRule) {
-                // Fallback: If no custom rule, use model base price and storage modifier
-                const model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId);
-                if (!model)
-                    return next(new types_js_1.AppError('Model not found', 404));
-                let storagePriceAdjustment = 0;
-                if (variantId) {
+                if (mongoose_1.default.Types.ObjectId.isValid(variantId)) {
                     const variant = await StorageVariant_js_1.StorageVariantModel.findById(variantId);
                     if (variant)
-                        storagePriceAdjustment = variant.priceModifier;
+                        storageModifier = variant.priceModifier;
                 }
-                pricingRule = await PricingRule_js_1.PricingRuleModel.create({
-                    modelId,
-                    variantId,
-                    basePrice: model.basePrice,
-                    storagePriceAdjustment,
-                    version: 1,
-                    isActive: true,
+                else if (modelDoc) {
+                    const variant = await StorageVariant_js_1.StorageVariantModel.findOne({
+                        modelId: modelDoc._id,
+                        $or: [{ capacity: variantId }, { capacity: new RegExp(variantId, 'i') }],
+                    });
+                    if (variant)
+                        storageModifier = variant.priceModifier;
+                }
+            }
+            // 3. Search for existing PricingRule
+            const targetModelId = modelDoc ? modelDoc._id : (modelId && mongoose_1.default.Types.ObjectId.isValid(modelId) ? modelId : null);
+            if (targetModelId) {
+                const query = { modelId: targetModelId, isActive: true };
+                if (variantId && mongoose_1.default.Types.ObjectId.isValid(variantId)) {
+                    query.variantId = variantId;
+                }
+                pricingRule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
+                if (!pricingRule) {
+                    pricingRule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId: targetModelId, isActive: true }).sort({ version: -1 });
+                }
+            }
+            // 4. Fallback estimated base price from model name or standard tier if not resolved
+            if (!effectiveBasePrice) {
+                const lowerName = (modelName || modelId || '').toLowerCase();
+                if (lowerName.includes('pro max') || lowerName.includes('ultra')) {
+                    effectiveBasePrice = 65000;
+                }
+                else if (lowerName.includes('pro') || lowerName.includes('plus')) {
+                    effectiveBasePrice = 45000;
+                }
+                else if (lowerName.includes('macbook') || lowerName.includes('xps') || lowerName.includes('alienware')) {
+                    effectiveBasePrice = 85000;
+                }
+                else if (lowerName.includes('laptop') || lowerName.includes('thinkpad') || lowerName.includes('zenbook')) {
+                    effectiveBasePrice = 55000;
+                }
+                else {
+                    effectiveBasePrice = 28000;
+                }
+            }
+            let valuation;
+            if (pricingRule) {
+                valuation = ValuationEngine_js_1.ValuationEngine.calculate({
+                    id: pricingRule._id.toString(),
+                    modelId: pricingRule.modelId.toString(),
+                    variantId: pricingRule.variantId?.toString() || '',
+                    basePrice: pricingRule.basePrice,
+                    storagePriceAdjustment: pricingRule.storagePriceAdjustment,
+                    deductions: pricingRule.deductions,
+                    version: pricingRule.version,
+                    isActive: pricingRule.isActive,
+                    effectiveFrom: pricingRule.effectiveFrom,
+                }, {
+                    displayCondition,
+                    bodyCondition,
+                    batteryHealth,
+                    functionalFaults,
+                    hasOriginalBox: !!hasOriginalBox,
+                    hasOriginalCharger: !!hasOriginalCharger,
                 });
             }
-            const valuation = ValuationEngine_js_1.ValuationEngine.calculate({
-                id: pricingRule._id.toString(),
-                modelId: pricingRule.modelId.toString(),
-                variantId: pricingRule.variantId?.toString() || '',
-                basePrice: pricingRule.basePrice,
-                storagePriceAdjustment: pricingRule.storagePriceAdjustment,
-                deductions: pricingRule.deductions,
-                version: pricingRule.version,
-                isActive: pricingRule.isActive,
-                effectiveFrom: pricingRule.effectiveFrom,
-            }, {
-                displayCondition,
-                bodyCondition,
-                batteryHealth,
-                functionalFaults,
-                hasOriginalBox: !!hasOriginalBox,
-                hasOriginalCharger: !!hasOriginalCharger,
-            });
+            else {
+                // Standard high-accuracy REVOO formula
+                const breakdown = [];
+                breakdown.push({
+                    component: 'Base Price',
+                    description: 'Standard model base valuation',
+                    adjustment: effectiveBasePrice,
+                });
+                if (storageModifier !== 0) {
+                    breakdown.push({
+                        component: 'Storage Variant',
+                        description: 'Capacity price adjustment',
+                        adjustment: storageModifier,
+                    });
+                }
+                let totalDeductions = 0;
+                let totalBonuses = 0;
+                // Display Condition Deductions
+                const displayDeductions = {
+                    FLAWLESS: 0,
+                    MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.08),
+                    DEEP_SCRATCHES: Math.round(effectiveBasePrice * 0.18),
+                    CRACKED: Math.round(effectiveBasePrice * 0.35),
+                };
+                const dispPen = displayDeductions[displayCondition] ?? 0;
+                if (dispPen > 0) {
+                    totalDeductions += dispPen;
+                    breakdown.push({
+                        component: 'Display Condition',
+                        description: `Deduction for ${displayCondition.toLowerCase().replace(/_/g, ' ')}`,
+                        adjustment: -dispPen,
+                    });
+                }
+                // Body Condition Deductions
+                const bodyDeductions = {
+                    FLAWLESS: 0,
+                    MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.05),
+                    DENTS_OR_SCUFFS: Math.round(effectiveBasePrice * 0.12),
+                    BENT_OR_BROKEN: Math.round(effectiveBasePrice * 0.25),
+                };
+                const bodyPen = bodyDeductions[bodyCondition] ?? 0;
+                if (bodyPen > 0) {
+                    totalDeductions += bodyPen;
+                    breakdown.push({
+                        component: 'Body Condition',
+                        description: `Deduction for ${bodyCondition.toLowerCase().replace(/_/g, ' ')}`,
+                        adjustment: -bodyPen,
+                    });
+                }
+                // Battery Health Deductions
+                const batteryDeductions = {
+                    ABOVE_85: 0,
+                    BETWEEN_75_85: Math.round(effectiveBasePrice * 0.05),
+                    BELOW_75: Math.round(effectiveBasePrice * 0.12),
+                };
+                const battPen = batteryDeductions[batteryHealth] ?? 0;
+                if (battPen > 0) {
+                    totalDeductions += battPen;
+                    breakdown.push({
+                        component: 'Battery Health',
+                        description: `Deduction for ${batteryHealth.toLowerCase().replace(/_/g, ' ')} condition`,
+                        adjustment: -battPen,
+                    });
+                }
+                // Functional Faults Deductions
+                const faultsMap = {
+                    frontCameraFaulty: { label: 'Front Camera Fault', rate: 0.08 },
+                    backCameraFaulty: { label: 'Rear Camera System Fault', rate: 0.12 },
+                    faceIdOrFingerprintFaulty: { label: 'Biometrics Sensor Fault', rate: 0.10 },
+                    speakerOrMicFaulty: { label: 'Audio / Speaker / Mic Fault', rate: 0.06 },
+                    chargingPortFaulty: { label: 'Charging Port / USB Fault', rate: 0.07 },
+                    wirelessOrBluetoothFaulty: { label: 'Wireless / Bluetooth Connectivity Fault', rate: 0.08 },
+                };
+                for (const [faultKey, val] of Object.entries(faultsMap)) {
+                    if (functionalFaults && functionalFaults[faultKey] === true) {
+                        const pen = Math.round(effectiveBasePrice * val.rate);
+                        totalDeductions += pen;
+                        breakdown.push({
+                            component: 'Hardware Fault',
+                            description: val.label,
+                            adjustment: -pen,
+                        });
+                    }
+                }
+                // Accessories Bonuses
+                if (hasOriginalBox) {
+                    totalBonuses += 500;
+                    breakdown.push({
+                        component: 'Original Packaging',
+                        description: 'Original retail box included',
+                        adjustment: 500,
+                    });
+                }
+                if (hasOriginalCharger) {
+                    totalBonuses += 500;
+                    breakdown.push({
+                        component: 'Original Accessories',
+                        description: 'Original power adapter & cable included',
+                        adjustment: 500,
+                    });
+                }
+                const calculated = Math.max(1000, effectiveBasePrice + storageModifier - totalDeductions + totalBonuses);
+                valuation = {
+                    basePrice: effectiveBasePrice,
+                    storageAdjustment: storageModifier,
+                    totalDeductions,
+                    totalBonuses,
+                    finalCalculatedAmount: Math.round(calculated),
+                    breakdown,
+                };
+            }
             res.status(200).json({
                 success: true,
                 message: 'Indicative estimate calculated successfully.',
