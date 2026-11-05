@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CatalogueController = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const Brand_js_1 = require("../../infrastructure/database/models/Brand.js");
 const SmartphoneModel_js_1 = require("../../infrastructure/database/models/SmartphoneModel.js");
 const StorageVariant_js_1 = require("../../infrastructure/database/models/StorageVariant.js");
@@ -26,8 +30,24 @@ class CatalogueController {
     static async getModelsByBrand(req, res, next) {
         try {
             const { brandId } = req.params;
+            let targetBrandId = brandId;
+            if (!mongoose_1.default.Types.ObjectId.isValid(brandId)) {
+                const cleanSlug = brandId.split('-')[0].toLowerCase();
+                const brandDoc = await Brand_js_1.BrandModel.findOne({
+                    $or: [
+                        { slug: cleanSlug },
+                        { name: new RegExp(`^${cleanSlug}$`, 'i') }
+                    ]
+                });
+                if (brandDoc) {
+                    targetBrandId = brandDoc._id;
+                }
+                else {
+                    return res.status(200).json({ success: true, data: [] });
+                }
+            }
             const models = await SmartphoneModel_js_1.SmartphoneModel.find({
-                brandId,
+                brandId: targetBrandId,
                 isPublished: true,
                 isArchived: false,
             }).sort({ releaseYear: -1, name: 1 });
@@ -40,12 +60,23 @@ class CatalogueController {
     static async getModelDetails(req, res, next) {
         try {
             const { modelId } = req.params;
-            const model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId).populate('brandId', 'name logoUrl');
+            let model = null;
+            if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
+                model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId).populate('brandId', 'name logoUrl');
+            }
+            else {
+                model = await SmartphoneModel_js_1.SmartphoneModel.findOne({
+                    $or: [
+                        { slug: modelId },
+                        { name: new RegExp(`^${modelId}$`, 'i') }
+                    ]
+                }).populate('brandId', 'name logoUrl');
+            }
             if (!model || model.isArchived) {
                 return next(new types_js_1.AppError('Smartphone model not found or currently unavailable.', 404));
             }
             const variants = await StorageVariant_js_1.StorageVariantModel.find({
-                modelId,
+                modelId: model._id,
                 isPublished: true,
             }).sort({ priceModifier: 1 });
             res.status(200).json({

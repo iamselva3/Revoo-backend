@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { BrandModel } from '../../infrastructure/database/models/Brand.js';
 import { SmartphoneModel } from '../../infrastructure/database/models/SmartphoneModel.js';
 import { StorageVariantModel } from '../../infrastructure/database/models/StorageVariant.js';
@@ -26,8 +27,24 @@ export class CatalogueController {
   public static async getModelsByBrand(req: Request, res: Response, next: NextFunction) {
     try {
       const { brandId } = req.params;
+      let targetBrandId: any = brandId;
+      if (!mongoose.Types.ObjectId.isValid(brandId)) {
+        const cleanSlug = brandId.split('-')[0].toLowerCase();
+        const brandDoc = await BrandModel.findOne({
+          $or: [
+            { slug: cleanSlug },
+            { name: new RegExp(`^${cleanSlug}$`, 'i') }
+          ]
+        });
+        if (brandDoc) {
+          targetBrandId = brandDoc._id;
+        } else {
+          return res.status(200).json({ success: true, data: [] });
+        }
+      }
+
       const models = await SmartphoneModel.find({
-        brandId,
+        brandId: targetBrandId,
         isPublished: true,
         isArchived: false,
       }).sort({ releaseYear: -1, name: 1 });
@@ -41,13 +58,24 @@ export class CatalogueController {
   public static async getModelDetails(req: Request, res: Response, next: NextFunction) {
     try {
       const { modelId } = req.params;
-      const model = await SmartphoneModel.findById(modelId).populate('brandId', 'name logoUrl');
+      let model = null;
+      if (mongoose.Types.ObjectId.isValid(modelId)) {
+        model = await SmartphoneModel.findById(modelId).populate('brandId', 'name logoUrl');
+      } else {
+        model = await SmartphoneModel.findOne({
+          $or: [
+            { slug: modelId },
+            { name: new RegExp(`^${modelId}$`, 'i') }
+          ]
+        }).populate('brandId', 'name logoUrl');
+      }
+
       if (!model || model.isArchived) {
         return next(new AppError('Smartphone model not found or currently unavailable.', 404));
       }
 
       const variants = await StorageVariantModel.find({
-        modelId,
+        modelId: model._id,
         isPublished: true,
       }).sort({ priceModifier: 1 });
 
