@@ -746,6 +746,87 @@ export class CatalogueController {
     }
   }
 
+  // --- Dedicated App Launch Popup Endpoints ---
+  public static async getAppPopup(req: Request, res: Response, next: NextFunction) {
+    try {
+      const popup = await BannerModel.findOne({ isPopupModal: true });
+      if (!popup) {
+        return res.status(200).json({ success: true, data: { isEnabled: false } });
+      }
+      res.status(200).json({
+        success: true,
+        data: {
+          isEnabled: popup.isActive === true,
+          ...popup.toObject(),
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async adminSavePopup(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const {
+        isEnabled = false,
+        tag = 'LIVE SALE',
+        title = 'Special Promotion',
+        subtitle = '',
+        badge = 'Exclusive Deal',
+        popupActionText = 'BUY NOW',
+        popupActionUrl = '/buy',
+        imageUrl = '',
+        color1 = '#059669',
+        color2 = '#022C22',
+      } = req.body;
+
+      let popup = await BannerModel.findOne({ isPopupModal: true });
+
+      if (popup) {
+        popup.isActive = isEnabled;
+        popup.tag = tag;
+        popup.title = title;
+        popup.subtitle = subtitle;
+        popup.badge = badge;
+        popup.popupActionText = popupActionText;
+        popup.popupActionUrl = popupActionUrl;
+        popup.linkUrl = popupActionUrl;
+        popup.imageUrl = imageUrl;
+        popup.color1 = color1;
+        popup.color2 = color2;
+        await popup.save();
+      } else {
+        popup = await BannerModel.create({
+          tag,
+          title,
+          subtitle,
+          badge,
+          icon: 'local_fire_department',
+          imageUrl,
+          isPopupModal: true,
+          popupActionText,
+          popupActionUrl,
+          linkUrl: popupActionUrl,
+          isActive: isEnabled,
+          color1,
+          color2,
+          displayOrder: 0,
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Launch popup updated successfully.',
+        data: {
+          isEnabled: popup.isActive,
+          ...popup.toObject(),
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   // --- Admin Category Endpoints ---
   public static async adminListCategories(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {

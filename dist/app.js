@@ -45,9 +45,9 @@ app.get(['/health', '/'], (req, res) => {
 });
 // Rate limiting
 app.use(rateLimiter_middleware_js_1.globalLimiter);
-// Request body parsers
-app.use(express_1.default.json({ limit: '2mb' }));
-app.use(express_1.default.urlencoded({ extended: true, limit: '2mb' }));
+// Request body parsers (supports high-res image uploads & base64 data URLs)
+app.use(express_1.default.json({ limit: '50mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
 // Request logging
 if (index_js_1.config.nodeEnv !== 'test') {
     app.use((0, morgan_1.default)('combined'));
@@ -55,8 +55,9 @@ if (index_js_1.config.nodeEnv !== 'test') {
 // Serve uploaded static files
 const uploadBasePath = path_1.default.resolve(process.cwd(), index_js_1.config.storage.uploadDir);
 app.use('/uploads', express_1.default.static(uploadBasePath));
-// Mount REST API version 1
+// Mount REST API (both /api/v1 and root / for seamless compatibility)
 app.use('/api/v1', index_js_2.default);
+app.use('/', index_js_2.default);
 // Centralized error handling middleware
 app.use(errorHandler_middleware_js_1.errorHandler);
 exports.default = app;

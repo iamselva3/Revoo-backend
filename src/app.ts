@@ -47,9 +47,9 @@ app.get(['/health', '/'], (req, res) => {
 // Rate limiting
 app.use(globalLimiter);
 
-// Request body parsers
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+// Request body parsers (supports high-res image uploads & base64 data URLs)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Request logging
 if (config.nodeEnv !== 'test') {
@@ -60,8 +60,9 @@ if (config.nodeEnv !== 'test') {
 const uploadBasePath = path.resolve(process.cwd(), config.storage.uploadDir);
 app.use('/uploads', express.static(uploadBasePath));
 
-// Mount REST API version 1
+// Mount REST API (both /api/v1 and root / for seamless compatibility)
 app.use('/api/v1', routes);
+app.use('/', routes);
 
 // Centralized error handling middleware
 app.use(errorHandler);

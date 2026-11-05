@@ -13,8 +13,11 @@ router.get('/models/:modelId', CatalogueController_js_1.CatalogueController.getM
 router.post('/estimate', CatalogueController_js_1.CatalogueController.calculateIndicativeEstimate);
 router.get('/refurbished', CatalogueController_js_1.CatalogueController.getRefurbishedProducts);
 router.get('/reviews', CatalogueController_js_1.CatalogueController.getCustomerReviews);
+router.get('/popup', CatalogueController_js_1.CatalogueController.getAppPopup);
 router.post('/orders', CatalogueController_js_1.CatalogueController.createOrderInvoice);
 // Admin catalogue & marketing management
+router.get('/admin/popup', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.getAppPopup);
+router.post('/admin/popup', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminSavePopup);
 router.get('/admin/banners', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListBanners);
 router.post('/admin/banners', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateBanner);
 router.put('/admin/banners/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminUpdateBanner);

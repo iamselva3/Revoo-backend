@@ -13,9 +13,12 @@ router.get('/models/:modelId', CatalogueController.getModelDetails);
 router.post('/estimate', CatalogueController.calculateIndicativeEstimate);
 router.get('/refurbished', CatalogueController.getRefurbishedProducts);
 router.get('/reviews', CatalogueController.getCustomerReviews);
+router.get('/popup', CatalogueController.getAppPopup);
 router.post('/orders', CatalogueController.createOrderInvoice);
 
 // Admin catalogue & marketing management
+router.get('/admin/popup', authenticateAdmin, CatalogueController.getAppPopup);
+router.post('/admin/popup', authenticateAdmin, CatalogueController.adminSavePopup);
 router.get('/admin/banners', authenticateAdmin, CatalogueController.adminListBanners);
 router.post('/admin/banners', authenticateAdmin, CatalogueController.adminCreateBanner);
 router.put('/admin/banners/:id', authenticateAdmin, CatalogueController.adminUpdateBanner);
