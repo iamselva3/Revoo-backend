@@ -3,6 +3,7 @@ import { config } from './config/index.js';
 import { connectDatabase } from './infrastructure/database/connection.js';
 import { AdminUserModel } from './infrastructure/database/models/AdminUser.js';
 import { seedDatabase } from './infrastructure/database/seeds/seed.js';
+import { seedGeoDataIfNeeded } from './infrastructure/database/seeds/geoSeed.js';
 
 async function bootstrap() {
   try {
@@ -19,6 +20,9 @@ async function bootstrap() {
       } else {
         console.log(`[REVOO Server] Connected database verified with ${adminCount} admin accounts.`);
       }
+
+      // Ensure India States, Cities, and Pincodes are seeded in DB
+      await seedGeoDataIfNeeded();
     } catch (seedErr) {
       console.error('[REVOO Server] Error verifying/seeding database:', seedErr);
     }

@@ -8,6 +8,7 @@ const index_js_1 = require("./config/index.js");
 const connection_js_1 = require("./infrastructure/database/connection.js");
 const AdminUser_js_1 = require("./infrastructure/database/models/AdminUser.js");
 const seed_js_1 = require("./infrastructure/database/seeds/seed.js");
+const geoSeed_js_1 = require("./infrastructure/database/seeds/geoSeed.js");
 async function bootstrap() {
     try {
         console.log('[REVOO Server] Initializing platform backend...');
@@ -23,6 +24,8 @@ async function bootstrap() {
             else {
                 console.log(`[REVOO Server] Connected database verified with ${adminCount} admin accounts.`);
             }
+            // Ensure India States, Cities, and Pincodes are seeded in DB
+            await (0, geoSeed_js_1.seedGeoDataIfNeeded)();
         }
         catch (seedErr) {
             console.error('[REVOO Server] Error verifying/seeding database:', seedErr);

@@ -5,6 +5,7 @@ import pricingRoutes from './pricing.routes.js';
 import requestRoutes from './request.routes.js';
 import enquiryRoutes from './enquiry.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
+import geoRoutes from './geo.routes.js';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use('/pricing', pricingRoutes);
 router.use('/requests', requestRoutes);
 router.use('/enquiries', enquiryRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/geo', geoRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {
