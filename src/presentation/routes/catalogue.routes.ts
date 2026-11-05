@@ -44,7 +44,9 @@ router.post('/admin/models/:id/variants', authenticateAdmin, CatalogueController
 router.get('/admin/refurbished', authenticateAdmin, CatalogueController.adminListRefurbishedProducts);
 router.post('/admin/refurbished', authenticateAdmin, CatalogueController.adminCreateRefurbishedProduct);
 router.put('/admin/refurbished/:id', authenticateAdmin, CatalogueController.adminUpdateRefurbishedProduct);
+router.post('/admin/refurbished/:id/update', authenticateAdmin, CatalogueController.adminUpdateRefurbishedProduct);
 router.delete('/admin/refurbished/:id', authenticateAdmin, CatalogueController.adminDeleteRefurbishedProduct);
+router.post('/admin/refurbished/:id/delete', authenticateAdmin, CatalogueController.adminDeleteRefurbishedProduct);
 
 router.get('/admin/invoices', authenticateAdmin, CatalogueController.adminListInvoices);
 

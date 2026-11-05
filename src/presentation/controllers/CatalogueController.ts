@@ -817,10 +817,27 @@ export class CatalogueController {
     try {
       const { id } = req.params;
       const payload = { ...req.body };
+      delete payload._id;
+      delete payload.__v;
+      delete payload.createdAt;
+      delete payload.updatedAt;
+
       if (payload.originalPrice && payload.salePrice && (!payload.discountPercentage || payload.discountPercentage === 0)) {
         payload.discountPercentage = Math.max(0, Math.round(((payload.originalPrice - payload.salePrice) / payload.originalPrice) * 100));
       }
-      const product = await RefurbishedProductModel.findByIdAndUpdate(id, payload, { new: true });
+
+      let product: any = null;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        product = await RefurbishedProductModel.findByIdAndUpdate(id, { $set: payload }, { new: true });
+      }
+      if (!product) {
+        product = await RefurbishedProductModel.findOneAndUpdate(
+          { $or: [{ _id: id }, { id: id }, { name: id }] },
+          { $set: payload },
+          { new: true }
+        );
+      }
+
       if (!product) {
         return res.status(404).json({ success: false, message: 'Certified phone not found.' });
       }
@@ -833,7 +850,15 @@ export class CatalogueController {
   public static async adminDeleteRefurbishedProduct(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const product = await RefurbishedProductModel.findByIdAndDelete(id);
+      let product: any = null;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        product = await RefurbishedProductModel.findByIdAndDelete(id);
+      }
+      if (!product) {
+        product = await RefurbishedProductModel.findOneAndDelete({
+          $or: [{ _id: id }, { id: id }, { name: id }],
+        });
+      }
       if (!product) {
         return res.status(404).json({ success: false, message: 'Certified phone not found.' });
       }

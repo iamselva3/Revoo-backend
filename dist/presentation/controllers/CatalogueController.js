@@ -779,10 +779,20 @@ class CatalogueController {
         try {
             const { id } = req.params;
             const payload = { ...req.body };
+            delete payload._id;
+            delete payload.__v;
+            delete payload.createdAt;
+            delete payload.updatedAt;
             if (payload.originalPrice && payload.salePrice && (!payload.discountPercentage || payload.discountPercentage === 0)) {
                 payload.discountPercentage = Math.max(0, Math.round(((payload.originalPrice - payload.salePrice) / payload.originalPrice) * 100));
             }
-            const product = await RefurbishedProduct_js_1.RefurbishedProductModel.findByIdAndUpdate(id, payload, { new: true });
+            let product = null;
+            if (mongoose_1.default.Types.ObjectId.isValid(id)) {
+                product = await RefurbishedProduct_js_1.RefurbishedProductModel.findByIdAndUpdate(id, { $set: payload }, { new: true });
+            }
+            if (!product) {
+                product = await RefurbishedProduct_js_1.RefurbishedProductModel.findOneAndUpdate({ $or: [{ _id: id }, { id: id }, { name: id }] }, { $set: payload }, { new: true });
+            }
             if (!product) {
                 return res.status(404).json({ success: false, message: 'Certified phone not found.' });
             }
@@ -795,7 +805,15 @@ class CatalogueController {
     static async adminDeleteRefurbishedProduct(req, res, next) {
         try {
             const { id } = req.params;
-            const product = await RefurbishedProduct_js_1.RefurbishedProductModel.findByIdAndDelete(id);
+            let product = null;
+            if (mongoose_1.default.Types.ObjectId.isValid(id)) {
+                product = await RefurbishedProduct_js_1.RefurbishedProductModel.findByIdAndDelete(id);
+            }
+            if (!product) {
+                product = await RefurbishedProduct_js_1.RefurbishedProductModel.findOneAndDelete({
+                    $or: [{ _id: id }, { id: id }, { name: id }],
+                });
+            }
             if (!product) {
                 return res.status(404).json({ success: false, message: 'Certified phone not found.' });
             }
