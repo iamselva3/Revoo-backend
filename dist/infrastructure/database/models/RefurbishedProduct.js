@@ -44,6 +44,7 @@ var DeviceGrade;
 const RefurbishedProductSchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true, index: true },
     brand: { type: String, required: true, trim: true, index: true },
+    category: { type: String, default: 'mobile', index: true },
     storage: { type: String, required: true },
     color: { type: String, default: 'Space Gray' },
     grade: { type: String, enum: Object.values(DeviceGrade), default: DeviceGrade.EXCELLENT },
@@ -51,6 +52,7 @@ const RefurbishedProductSchema = new mongoose_1.Schema({
     originalPrice: { type: Number, required: true },
     salePrice: { type: Number, required: true },
     discountPercentage: { type: Number, default: 0 },
+    offerTag: { type: String, default: '' },
     warrantyMonths: { type: Number, default: 12 },
     imageUrl: { type: String, required: true },
     inspectionScore: { type: Number, default: 98 },

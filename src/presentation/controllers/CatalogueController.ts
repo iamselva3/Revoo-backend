@@ -565,10 +565,13 @@ export class CatalogueController {
   // --- Refurbished Second-Hand Phones (Buy Section) ---
   public static async getRefurbishedProducts(req: Request, res: Response, next: NextFunction) {
     try {
-      const { search, brand, grade, maxPrice } = req.query;
+      const { search, brand, grade, maxPrice, category } = req.query;
       const query: any = { inStock: true };
 
-      if (brand && typeof brand === 'string') {
+      if (category && typeof category === 'string' && category !== 'all' && category !== 'ALL') {
+        query.category = new RegExp(category, 'i');
+      }
+      if (brand && typeof brand === 'string' && brand !== 'ALL') {
         query.brand = new RegExp(brand, 'i');
       }
       if (grade && typeof grade === 'string') {
@@ -577,10 +580,11 @@ export class CatalogueController {
       if (maxPrice && !isNaN(Number(maxPrice))) {
         query.salePrice = { $lte: Number(maxPrice) };
       }
-      if (search && typeof search === 'string') {
+      if (search && typeof search === 'string' && search.trim() !== '') {
         query.$or = [
-          { name: new RegExp(search, 'i') },
-          { brand: new RegExp(search, 'i') },
+          { name: new RegExp(search.trim(), 'i') },
+          { brand: new RegExp(search.trim(), 'i') },
+          { offerTag: new RegExp(search.trim(), 'i') },
         ];
       }
 
@@ -769,10 +773,71 @@ export class CatalogueController {
     }
   }
 
+  public static async adminListRefurbishedProducts(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const { search, brand, category, inStock } = req.query;
+      const query: any = {};
+      if (brand && typeof brand === 'string' && brand !== 'ALL') {
+        query.brand = new RegExp(`^${brand}$`, 'i');
+      }
+      if (category && typeof category === 'string' && category !== 'ALL') {
+        query.category = new RegExp(category, 'i');
+      }
+      if (inStock !== undefined && inStock !== 'ALL' && inStock !== '') {
+        query.inStock = String(inStock) === 'true';
+      }
+      if (search && typeof search === 'string' && search.trim() !== '') {
+        query.$or = [
+          { name: new RegExp(search.trim(), 'i') },
+          { brand: new RegExp(search.trim(), 'i') },
+          { offerTag: new RegExp(search.trim(), 'i') },
+        ];
+      }
+      const products = await RefurbishedProductModel.find(query).sort({ createdAt: -1 });
+      res.status(200).json({ success: true, count: products.length, data: products });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public static async adminCreateRefurbishedProduct(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
-      const product = await RefurbishedProductModel.create(req.body);
-      res.status(201).json({ success: true, message: 'Refurbished phone listed successfully.', data: product });
+      const payload = { ...req.body };
+      if (payload.originalPrice && payload.salePrice && (!payload.discountPercentage || payload.discountPercentage === 0)) {
+        payload.discountPercentage = Math.max(0, Math.round(((payload.originalPrice - payload.salePrice) / payload.originalPrice) * 100));
+      }
+      const product = await RefurbishedProductModel.create(payload);
+      res.status(201).json({ success: true, message: 'Certified phone listed in buy store successfully.', data: product });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async adminUpdateRefurbishedProduct(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const payload = { ...req.body };
+      if (payload.originalPrice && payload.salePrice && (!payload.discountPercentage || payload.discountPercentage === 0)) {
+        payload.discountPercentage = Math.max(0, Math.round(((payload.originalPrice - payload.salePrice) / payload.originalPrice) * 100));
+      }
+      const product = await RefurbishedProductModel.findByIdAndUpdate(id, payload, { new: true });
+      if (!product) {
+        return res.status(404).json({ success: false, message: 'Certified phone not found.' });
+      }
+      res.status(200).json({ success: true, message: 'Certified phone updated successfully.', data: product });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async adminDeleteRefurbishedProduct(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const product = await RefurbishedProductModel.findByIdAndDelete(id);
+      if (!product) {
+        return res.status(404).json({ success: false, message: 'Certified phone not found.' });
+      }
+      res.status(200).json({ success: true, message: 'Certified phone deleted from store inventory.' });
     } catch (err) {
       next(err);
     }

@@ -34,7 +34,11 @@ router.put('/admin/models/:id', auth_middleware_js_1.authenticateAdmin, Catalogu
 router.delete('/admin/models/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminDeleteModel);
 router.delete('/admin/models/:id/archive', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminArchiveModel);
 router.post('/admin/models/:id/variants', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateVariant);
+// Admin Refurbished / Buy Phones Store Management
+router.get('/admin/refurbished', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListRefurbishedProducts);
 router.post('/admin/refurbished', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminCreateRefurbishedProduct);
+router.put('/admin/refurbished/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminUpdateRefurbishedProduct);
+router.delete('/admin/refurbished/:id', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminDeleteRefurbishedProduct);
 router.get('/admin/invoices', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListInvoices);
 exports.default = router;
 //# sourceMappingURL=catalogue.routes.js.map

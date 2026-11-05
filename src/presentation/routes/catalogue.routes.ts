@@ -39,7 +39,12 @@ router.delete('/admin/models/:id', authenticateAdmin, CatalogueController.adminD
 router.delete('/admin/models/:id/archive', authenticateAdmin, CatalogueController.adminArchiveModel);
 
 router.post('/admin/models/:id/variants', authenticateAdmin, CatalogueController.adminCreateVariant);
+
+// Admin Refurbished / Buy Phones Store Management
+router.get('/admin/refurbished', authenticateAdmin, CatalogueController.adminListRefurbishedProducts);
 router.post('/admin/refurbished', authenticateAdmin, CatalogueController.adminCreateRefurbishedProduct);
+router.put('/admin/refurbished/:id', authenticateAdmin, CatalogueController.adminUpdateRefurbishedProduct);
+router.delete('/admin/refurbished/:id', authenticateAdmin, CatalogueController.adminDeleteRefurbishedProduct);
 
 router.get('/admin/invoices', authenticateAdmin, CatalogueController.adminListInvoices);
 

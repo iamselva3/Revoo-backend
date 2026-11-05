@@ -9,6 +9,7 @@ export enum DeviceGrade {
 export interface IRefurbishedProductDocument extends Document {
   name: string;
   brand: string;
+  category?: string;
   storage: string;
   color: string;
   grade: DeviceGrade;
@@ -16,6 +17,7 @@ export interface IRefurbishedProductDocument extends Document {
   originalPrice: number;
   salePrice: number;
   discountPercentage: number;
+  offerTag?: string;
   warrantyMonths: number;
   imageUrl: string;
   inspectionScore: number;
@@ -30,6 +32,7 @@ const RefurbishedProductSchema = new Schema<IRefurbishedProductDocument>(
   {
     name: { type: String, required: true, trim: true, index: true },
     brand: { type: String, required: true, trim: true, index: true },
+    category: { type: String, default: 'mobile', index: true },
     storage: { type: String, required: true },
     color: { type: String, default: 'Space Gray' },
     grade: { type: String, enum: Object.values(DeviceGrade), default: DeviceGrade.EXCELLENT },
@@ -37,6 +40,7 @@ const RefurbishedProductSchema = new Schema<IRefurbishedProductDocument>(
     originalPrice: { type: Number, required: true },
     salePrice: { type: Number, required: true },
     discountPercentage: { type: Number, default: 0 },
+    offerTag: { type: String, default: '' },
     warrantyMonths: { type: Number, default: 12 },
     imageUrl: { type: String, required: true },
     inspectionScore: { type: Number, default: 98 },
