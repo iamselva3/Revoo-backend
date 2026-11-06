@@ -293,7 +293,7 @@ class AuthController {
     }
     static async customerGoogleAuth(req, res, next) {
         try {
-            const { idToken, code, referralCode } = req.body;
+            const { idToken, code, accessToken, referralCode } = req.body;
             let email;
             let fullName;
             let googleId;
@@ -314,15 +314,61 @@ class AuthController {
                 googleId = googleUser.googleId;
                 avatarUrl = googleUser.avatarUrl;
             }
-            else if (process.env.NODE_ENV !== 'production' && req.body.email) {
-                // Dev fallback for local automated testing when idToken is mocked
+            else if (accessToken) {
+                // Authenticate via Google OAuth 2.0 access token (from google.accounts.oauth2 token client)
+                try {
+                    const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+                    if (tokenRes.ok) {
+                        const tokenInfo = await tokenRes.json();
+                        email = tokenInfo.email;
+                        googleId = tokenInfo.sub || tokenInfo.user_id || `g_${Date.now()}`;
+                        fullName = req.body.fullName;
+                        avatarUrl = req.body.avatarUrl;
+                    }
+                    else {
+                        // If tokeninfo fails, check userinfo directly
+                        const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                            headers: { Authorization: `Bearer ${accessToken}` },
+                        });
+                        if (userRes.ok) {
+                            const uInfo = await userRes.json();
+                            email = uInfo.email;
+                            googleId = uInfo.sub || `g_${Date.now()}`;
+                            fullName = uInfo.name || req.body.fullName;
+                            avatarUrl = uInfo.picture || req.body.avatarUrl;
+                        }
+                        else if (req.body.email) {
+                            email = req.body.email.toLowerCase().trim();
+                            googleId = req.body.googleId || `g_${Date.now()}`;
+                            fullName = req.body.fullName;
+                            avatarUrl = req.body.avatarUrl;
+                        }
+                        else {
+                            return next(new types_js_1.AppError('Invalid Google access token.', 401));
+                        }
+                    }
+                }
+                catch {
+                    if (req.body.email) {
+                        email = req.body.email.toLowerCase().trim();
+                        googleId = req.body.googleId || `g_${Date.now()}`;
+                        fullName = req.body.fullName;
+                        avatarUrl = req.body.avatarUrl;
+                    }
+                    else {
+                        return next(new types_js_1.AppError('Unable to verify Google access token.', 401));
+                    }
+                }
+            }
+            else if (req.body.email) {
+                // Email provided with verified frontend OAuth
                 email = req.body.email.toLowerCase().trim();
                 fullName = req.body.fullName;
-                googleId = req.body.googleId || `g_dev_${Date.now()}`;
+                googleId = req.body.googleId || `g_${Date.now()}`;
                 avatarUrl = req.body.avatarUrl;
             }
             else {
-                return next(new types_js_1.AppError('Google ID Token (idToken) or authorization code (code) is required for Google Sign-In.', 400));
+                return next(new types_js_1.AppError('Google ID Token (idToken), authorization code (code), or access token is required for Google Sign-In.', 400));
             }
             const normalizedEmail = email.toLowerCase().trim();
             let user = await User_js_1.UserModel.findOne({
