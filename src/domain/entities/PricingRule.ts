@@ -40,6 +40,7 @@ export interface IPricingRule {
   basePrice: number;
   storagePriceAdjustment: number;
   deductions: DamageDeductionMatrix;
+  deductionPercentages?: any;
   version: number;
   isActive: boolean;
   effectiveFrom: Date;

@@ -40,17 +40,87 @@ export class PricingController {
             version: 1,
             isActive: true,
             deductions: {
-              display: { FLAWLESS: 0, MINOR_SCRATCHES: 1000, DEEP_SCRATCHES: 2500, CRACKED_GLASS: 4500, BROKEN_OR_DEAD_PIXELS: 7000 },
-              body: { FLAWLESS: 0, MINOR_SIGNS_OF_USE: 500, DENTED_OR_SCRATCHED: 1500, BENT_OR_CRACKED_BACK: 3500 },
-              battery: { EXCELLENT: 0, GOOD: 800, DEGRADED: 2000 },
-              functional: { frontCameraFaulty: 1500, backCameraFaulty: 2500, faceIdOrFingerprintFaulty: 2000, speakerOrMicFaulty: 1000, chargingPortFaulty: 1200, wirelessOrBluetoothFaulty: 1500 },
+              display: {
+                FLAWLESS: 0,
+                MINOR_SCRATCHES: Math.round(modelBasePrice * 0.08),
+                DEEP_SCRATCHES: Math.round(modelBasePrice * 0.15),
+                CRACKED_GLASS: Math.round(modelBasePrice * 0.30),
+                BROKEN_OR_DEAD_PIXELS: Math.round(modelBasePrice * 0.50),
+              },
+              body: {
+                FLAWLESS: 0,
+                MINOR_SIGNS_OF_USE: Math.round(modelBasePrice * 0.04),
+                DENTED_OR_SCRATCHED: Math.round(modelBasePrice * 0.10),
+                BENT_OR_CRACKED_BACK: Math.round(modelBasePrice * 0.20),
+              },
+              battery: {
+                EXCELLENT: 0,
+                GOOD: Math.round(modelBasePrice * 0.05),
+                DEGRADED: Math.round(modelBasePrice * 0.10),
+              },
+              functional: {
+                frontCameraFaulty: Math.round(modelBasePrice * 0.08),
+                backCameraFaulty: Math.round(modelBasePrice * 0.12),
+                faceIdOrFingerprintFaulty: Math.round(modelBasePrice * 0.10),
+                speakerOrMicFaulty: Math.round(modelBasePrice * 0.05),
+                chargingPortFaulty: Math.round(modelBasePrice * 0.06),
+                wirelessOrBluetoothFaulty: Math.round(modelBasePrice * 0.07),
+              },
               accessoriesBonus: { hasOriginalBox: 500, hasOriginalCharger: 500 },
+            },
+            deductionPercentages: {
+              display: { FLAWLESS: 0, MINOR_SCRATCHES: 8, DEEP_SCRATCHES: 15, CRACKED_GLASS: 30, BROKEN_OR_DEAD_PIXELS: 50 },
+              body: { FLAWLESS: 0, MINOR_SIGNS_OF_USE: 4, DENTED_OR_SCRATCHED: 10, BENT_OR_CRACKED_BACK: 20 },
+              battery: { EXCELLENT: 0, GOOD: 5, DEGRADED: 10 },
+              functional: {
+                frontCameraFaulty: 8,
+                backCameraFaulty: 12,
+                faceIdOrFingerprintFaulty: 10,
+                speakerOrMicFaulty: 5,
+                chargingPortFaulty: 6,
+                wirelessOrBluetoothFaulty: 7,
+              },
             },
           },
         });
       }
 
-      res.status(200).json({ success: true, data: rule });
+      // If rule doesn't have deductionPercentages stored, calculate them dynamically from deductions and basePrice
+      const ruleObj = rule.toObject();
+      if (!ruleObj.deductionPercentages && ruleObj.basePrice > 0) {
+        const bp = ruleObj.basePrice;
+        const calcPct = (amt: number) => Math.round(((amt || 0) / bp) * 100);
+        ruleObj.deductionPercentages = {
+          display: {
+            FLAWLESS: 0,
+            MINOR_SCRATCHES: calcPct(ruleObj.deductions?.display?.MINOR_SCRATCHES) || 8,
+            DEEP_SCRATCHES: calcPct(ruleObj.deductions?.display?.DEEP_SCRATCHES) || 15,
+            CRACKED_GLASS: calcPct(ruleObj.deductions?.display?.CRACKED_GLASS) || 30,
+            BROKEN_OR_DEAD_PIXELS: calcPct(ruleObj.deductions?.display?.BROKEN_OR_DEAD_PIXELS) || 50,
+          },
+          body: {
+            FLAWLESS: 0,
+            MINOR_SIGNS_OF_USE: calcPct(ruleObj.deductions?.body?.MINOR_SIGNS_OF_USE) || 4,
+            DENTED_OR_SCRATCHED: calcPct(ruleObj.deductions?.body?.DENTED_OR_SCRATCHED) || 10,
+            BENT_OR_CRACKED_BACK: calcPct(ruleObj.deductions?.body?.BENT_OR_CRACKED_BACK) || 20,
+          },
+          battery: {
+            EXCELLENT: 0,
+            GOOD: calcPct(ruleObj.deductions?.battery?.GOOD) || 5,
+            DEGRADED: calcPct(ruleObj.deductions?.battery?.DEGRADED) || 10,
+          },
+          functional: {
+            frontCameraFaulty: calcPct(ruleObj.deductions?.functional?.frontCameraFaulty) || 8,
+            backCameraFaulty: calcPct(ruleObj.deductions?.functional?.backCameraFaulty) || 12,
+            faceIdOrFingerprintFaulty: calcPct(ruleObj.deductions?.functional?.faceIdOrFingerprintFaulty) || 10,
+            speakerOrMicFaulty: calcPct(ruleObj.deductions?.functional?.speakerOrMicFaulty) || 5,
+            chargingPortFaulty: calcPct(ruleObj.deductions?.functional?.chargingPortFaulty) || 6,
+            wirelessOrBluetoothFaulty: calcPct(ruleObj.deductions?.functional?.wirelessOrBluetoothFaulty) || 7,
+          },
+        };
+      }
+
+      res.status(200).json({ success: true, data: ruleObj });
     } catch (err) {
       next(err);
     }
@@ -59,7 +129,7 @@ export class PricingController {
   public static async updatePricingRule(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
       const { modelId } = req.params;
-      const { variantId, basePrice, storagePriceAdjustment, deductions, reasonForChange } = req.body;
+      const { variantId, basePrice, storagePriceAdjustment, deductions, deductionPercentages, reasonForChange } = req.body;
 
       const query: any = { modelId, isActive: true };
       if (variantId) query.variantId = variantId;
@@ -81,6 +151,7 @@ export class PricingController {
         basePrice,
         storagePriceAdjustment: storagePriceAdjustment || 0,
         deductions,
+        deductionPercentages,
         version: newVersion,
         isActive: true,
         effectiveFrom: new Date(),

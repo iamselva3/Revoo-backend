@@ -37,6 +37,7 @@ export interface IPricingRuleDocument extends Document {
       hasOriginalCharger: number;
     };
   };
+  deductionPercentages?: any;
   version: number;
   isActive: boolean;
   effectiveFrom: Date;
@@ -83,6 +84,7 @@ const PricingRuleSchema = new Schema<IPricingRuleDocument>(
         hasOriginalCharger: { type: Number, default: 500 },
       },
     },
+    deductionPercentages: { type: Schema.Types.Mixed },
     version: { type: Number, default: 1 },
     isActive: { type: Boolean, default: true, index: true },
     effectiveFrom: { type: Date, default: Date.now },

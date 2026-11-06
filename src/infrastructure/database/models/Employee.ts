@@ -54,3 +54,4 @@ EmployeeSchema.index({ district: 1, status: 1 });
 EmployeeSchema.index({ assignedPincodes: 1 });
 
 export const EmployeeModel = mongoose.model<IEmployeeDocument>('Employee', EmployeeSchema);
+

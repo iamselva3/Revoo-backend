@@ -72,6 +72,7 @@ const PricingRuleSchema = new mongoose_1.Schema({
             hasOriginalCharger: { type: Number, default: 500 },
         },
     },
+    deductionPercentages: { type: mongoose_1.Schema.Types.Mixed },
     version: { type: Number, default: 1 },
     isActive: { type: Boolean, default: true, index: true },
     effectiveFrom: { type: Date, default: Date.now },

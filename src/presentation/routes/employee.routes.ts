@@ -14,3 +14,4 @@ router.put('/:id', authenticateAdmin, EmployeeController.updateEmployee);
 router.delete('/:id', authenticateAdmin, EmployeeController.deleteEmployee);
 
 export default router;
+
