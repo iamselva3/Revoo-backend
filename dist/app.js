@@ -39,7 +39,7 @@ app.use((0, cors_1.default)({
 app.get(['/health', '/'], (req, res) => {
     res.status(200).json({
         status: 'HEALTHY',
-        service: 'REVOO Backend API',
+        service: 'Genie Backend API',
         timestamp: new Date().toISOString(),
         uptimeSeconds: Math.floor(process.uptime()),
         environment: index_js_1.config.nodeEnv,

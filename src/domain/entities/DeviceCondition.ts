@@ -16,20 +16,58 @@ export type BatteryHealthStatus =
   | 'GOOD' // 75% - 85%
   | 'DEGRADED'; // Below 75% or requires service
 
+// DOFY-Style Physical Conditions
+export type BackPanelCondition =
+  | 'NO_DEFECTS'
+  | 'MINOR_SCRATCHES'
+  | 'HEAVY_SCRATCHES'
+  | 'BACK_PANEL_BROKEN';
+
+export type SidePanelCondition =
+  | 'NO_DEFECTS'
+  | 'MINOR_DENT_OR_SCRATCHES'
+  | 'HEAVY_DENT'
+  | 'BENT_OR_BROKEN';
+
+export interface BasicConditionQuestions {
+  isPhoneWorking: boolean;         // 1. Is the phone in proper working condition?
+  isTouchscreenWorking: boolean;   // 2. Is the touchscreen working properly?
+  isDisplayOriginal: boolean;      // 3. Is the phone's display original?
+  hasValidWarranty: boolean;       // 4. Is there a valid warranty for your phone?
+}
+
+export interface HardwareFaults {
+  volumeButtonNotWorking: boolean;
+  wifiOrBluetoothNotWorking: boolean;
+  chargingPortNotWorking: boolean;
+  proximitySensorNotWorking: boolean;
+  powerButtonNotWorking: boolean;
+  earSpeakerNotWorking: boolean;
+  vibratorNotWorking: boolean;
+}
+
 export interface FunctionalFaults {
-  frontCameraFaulty: boolean;
-  backCameraFaulty: boolean;
-  faceIdOrFingerprintFaulty: boolean;
-  speakerOrMicFaulty: boolean;
-  chargingPortFaulty: boolean;
-  wirelessOrBluetoothFaulty: boolean;
+  frontCameraFaulty?: boolean;
+  backCameraFaulty?: boolean;
+  faceIdOrFingerprintFaulty?: boolean;
+  speakerOrMicFaulty?: boolean;
+  chargingPortFaulty?: boolean;
+  wirelessOrBluetoothFaulty?: boolean;
 }
 
 export interface DeclaredCondition {
-  displayCondition: DisplayCondition;
-  bodyCondition: BodyCondition;
-  batteryHealth: BatteryHealthStatus;
-  functionalFaults: FunctionalFaults;
+  // Legacy fields (kept for backward compatibility)
+  displayCondition?: DisplayCondition;
+  bodyCondition?: BodyCondition;
+  batteryHealth?: BatteryHealthStatus;
+  functionalFaults?: FunctionalFaults;
+
+  // New DOFY Condition Assessment fields
+  basicQuestions?: BasicConditionQuestions;
+  backPanelCondition?: BackPanelCondition;
+  sidePanelCondition?: SidePanelCondition;
+  hardwareFaults?: HardwareFaults;
+
   hasOriginalBox: boolean;
   hasOriginalCharger: boolean;
   additionalNotes?: string;

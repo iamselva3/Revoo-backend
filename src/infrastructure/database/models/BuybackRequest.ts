@@ -96,9 +96,10 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
       imeiOrSerial: { type: String },
     },
     declaredCondition: {
-      displayCondition: { type: String, required: true },
-      bodyCondition: { type: String, required: true },
-      batteryHealth: { type: String, required: true },
+      // Legacy fields
+      displayCondition: { type: String, required: false },
+      bodyCondition: { type: String, required: false },
+      batteryHealth: { type: String, required: false },
       functionalFaults: {
         frontCameraFaulty: { type: Boolean, default: false },
         backCameraFaulty: { type: Boolean, default: false },
@@ -107,6 +108,26 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
         chargingPortFaulty: { type: Boolean, default: false },
         wirelessOrBluetoothFaulty: { type: Boolean, default: false },
       },
+
+      // DOFY Condition Assessment fields
+      basicQuestions: {
+        isPhoneWorking: { type: Boolean, default: true },
+        isTouchscreenWorking: { type: Boolean, default: true },
+        isDisplayOriginal: { type: Boolean, default: true },
+        hasValidWarranty: { type: Boolean, default: false },
+      },
+      backPanelCondition: { type: String },
+      sidePanelCondition: { type: String },
+      hardwareFaults: {
+        volumeButtonNotWorking: { type: Boolean, default: false },
+        wifiOrBluetoothNotWorking: { type: Boolean, default: false },
+        chargingPortNotWorking: { type: Boolean, default: false },
+        proximitySensorNotWorking: { type: Boolean, default: false },
+        powerButtonNotWorking: { type: Boolean, default: false },
+        earSpeakerNotWorking: { type: Boolean, default: false },
+        vibratorNotWorking: { type: Boolean, default: false },
+      },
+
       hasOriginalBox: { type: Boolean, default: false },
       hasOriginalCharger: { type: Boolean, default: false },
       additionalNotes: { type: String },

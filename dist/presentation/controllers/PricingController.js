@@ -39,6 +39,7 @@ class PricingController {
                         version: 1,
                         isActive: true,
                         deductions: {
+                            // Legacy
                             display: {
                                 FLAWLESS: 0,
                                 MINOR_SCRATCHES: Math.round(modelBasePrice * 0.08),
@@ -65,9 +66,38 @@ class PricingController {
                                 chargingPortFaulty: Math.round(modelBasePrice * 0.06),
                                 wirelessOrBluetoothFaulty: Math.round(modelBasePrice * 0.07),
                             },
+                            // DOFY Deductions (Calculated ₹ amounts)
+                            basicQuestions: {
+                                phoneNotWorking: Math.round(modelBasePrice * 0.60),
+                                touchscreenNotWorking: Math.round(modelBasePrice * 0.15),
+                                displayNotOriginal: Math.round(modelBasePrice * 0.10),
+                                noWarranty: Math.round(modelBasePrice * 0.05),
+                            },
+                            backPanel: {
+                                NO_DEFECTS: 0,
+                                MINOR_SCRATCHES: Math.round(modelBasePrice * 0.03),
+                                HEAVY_SCRATCHES: Math.round(modelBasePrice * 0.08),
+                                BACK_PANEL_BROKEN: Math.round(modelBasePrice * 0.15),
+                            },
+                            sidePanel: {
+                                NO_DEFECTS: 0,
+                                MINOR_DENT_OR_SCRATCHES: Math.round(modelBasePrice * 0.03),
+                                HEAVY_DENT: Math.round(modelBasePrice * 0.08),
+                                BENT_OR_BROKEN: Math.round(modelBasePrice * 0.12),
+                            },
+                            hardwareFaults: {
+                                powerButtonNotWorking: Math.round(modelBasePrice * 0.05),
+                                volumeButtonNotWorking: Math.round(modelBasePrice * 0.03),
+                                chargingPortNotWorking: Math.round(modelBasePrice * 0.08),
+                                earSpeakerNotWorking: Math.round(modelBasePrice * 0.03),
+                                proximitySensorNotWorking: Math.round(modelBasePrice * 0.03),
+                                wifiOrBluetoothNotWorking: Math.round(modelBasePrice * 0.05),
+                                vibratorNotWorking: Math.round(modelBasePrice * 0.02),
+                            },
                             accessoriesBonus: { hasOriginalBox: 500, hasOriginalCharger: 500 },
                         },
                         deductionPercentages: {
+                            // Legacy
                             display: { FLAWLESS: 0, MINOR_SCRATCHES: 8, DEEP_SCRATCHES: 15, CRACKED_GLASS: 30, BROKEN_OR_DEAD_PIXELS: 50 },
                             body: { FLAWLESS: 0, MINOR_SIGNS_OF_USE: 4, DENTED_OR_SCRATCHED: 10, BENT_OR_CRACKED_BACK: 20 },
                             battery: { EXCELLENT: 0, GOOD: 5, DEGRADED: 10 },
@@ -78,6 +108,34 @@ class PricingController {
                                 speakerOrMicFaulty: 5,
                                 chargingPortFaulty: 6,
                                 wirelessOrBluetoothFaulty: 7,
+                            },
+                            // DOFY Percentages
+                            basicQuestions: {
+                                phoneNotWorking: 60,
+                                touchscreenNotWorking: 15,
+                                displayNotOriginal: 10,
+                                noWarranty: 5,
+                            },
+                            backPanel: {
+                                NO_DEFECTS: 0,
+                                MINOR_SCRATCHES: 3,
+                                HEAVY_SCRATCHES: 8,
+                                BACK_PANEL_BROKEN: 15,
+                            },
+                            sidePanel: {
+                                NO_DEFECTS: 0,
+                                MINOR_DENT_OR_SCRATCHES: 3,
+                                HEAVY_DENT: 8,
+                                BENT_OR_BROKEN: 12,
+                            },
+                            hardwareFaults: {
+                                powerButtonNotWorking: 5,
+                                volumeButtonNotWorking: 3,
+                                chargingPortNotWorking: 8,
+                                earSpeakerNotWorking: 3,
+                                proximitySensorNotWorking: 3,
+                                wifiOrBluetoothNotWorking: 5,
+                                vibratorNotWorking: 2,
                             },
                         },
                     },
@@ -114,6 +172,33 @@ class PricingController {
                         speakerOrMicFaulty: calcPct(ruleObj.deductions?.functional?.speakerOrMicFaulty) || 5,
                         chargingPortFaulty: calcPct(ruleObj.deductions?.functional?.chargingPortFaulty) || 6,
                         wirelessOrBluetoothFaulty: calcPct(ruleObj.deductions?.functional?.wirelessOrBluetoothFaulty) || 7,
+                    },
+                    basicQuestions: {
+                        phoneNotWorking: calcPct(ruleObj.deductions?.basicQuestions?.phoneNotWorking) || 60,
+                        touchscreenNotWorking: calcPct(ruleObj.deductions?.basicQuestions?.touchscreenNotWorking) || 15,
+                        displayNotOriginal: calcPct(ruleObj.deductions?.basicQuestions?.displayNotOriginal) || 10,
+                        noWarranty: calcPct(ruleObj.deductions?.basicQuestions?.noWarranty) || 5,
+                    },
+                    backPanel: {
+                        NO_DEFECTS: 0,
+                        MINOR_SCRATCHES: calcPct(ruleObj.deductions?.backPanel?.MINOR_SCRATCHES) || 3,
+                        HEAVY_SCRATCHES: calcPct(ruleObj.deductions?.backPanel?.HEAVY_SCRATCHES) || 8,
+                        BACK_PANEL_BROKEN: calcPct(ruleObj.deductions?.backPanel?.BACK_PANEL_BROKEN) || 15,
+                    },
+                    sidePanel: {
+                        NO_DEFECTS: 0,
+                        MINOR_DENT_OR_SCRATCHES: calcPct(ruleObj.deductions?.sidePanel?.MINOR_DENT_OR_SCRATCHES) || 3,
+                        HEAVY_DENT: calcPct(ruleObj.deductions?.sidePanel?.HEAVY_DENT) || 8,
+                        BENT_OR_BROKEN: calcPct(ruleObj.deductions?.sidePanel?.BENT_OR_BROKEN) || 12,
+                    },
+                    hardwareFaults: {
+                        powerButtonNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.powerButtonNotWorking) || 5,
+                        volumeButtonNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.volumeButtonNotWorking) || 3,
+                        chargingPortNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.chargingPortNotWorking) || 8,
+                        earSpeakerNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.earSpeakerNotWorking) || 3,
+                        proximitySensorNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.proximitySensorNotWorking) || 3,
+                        wifiOrBluetoothNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.wifiOrBluetoothNotWorking) || 5,
+                        vibratorNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.vibratorNotWorking) || 2,
                     },
                 };
             }

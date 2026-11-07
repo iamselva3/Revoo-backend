@@ -36,6 +36,33 @@ export interface IPricingRuleDocument extends Document {
       hasOriginalBox: number;
       hasOriginalCharger: number;
     };
+    basicQuestions?: {
+      phoneNotWorking?: number;
+      touchscreenNotWorking?: number;
+      displayNotOriginal?: number;
+      noWarranty?: number;
+    };
+    backPanel?: {
+      NO_DEFECTS?: number;
+      MINOR_SCRATCHES?: number;
+      HEAVY_SCRATCHES?: number;
+      BACK_PANEL_BROKEN?: number;
+    };
+    sidePanel?: {
+      NO_DEFECTS?: number;
+      MINOR_DENT_OR_SCRATCHES?: number;
+      HEAVY_DENT?: number;
+      BENT_OR_BROKEN?: number;
+    };
+    hardwareFaults?: {
+      volumeButtonNotWorking?: number;
+      wifiOrBluetoothNotWorking?: number;
+      chargingPortNotWorking?: number;
+      proximitySensorNotWorking?: number;
+      powerButtonNotWorking?: number;
+      earSpeakerNotWorking?: number;
+      vibratorNotWorking?: number;
+    };
   };
   deductionPercentages?: any;
   version: number;
@@ -82,6 +109,33 @@ const PricingRuleSchema = new Schema<IPricingRuleDocument>(
       accessoriesBonus: {
         hasOriginalBox: { type: Number, default: 500 },
         hasOriginalCharger: { type: Number, default: 500 },
+      },
+      basicQuestions: {
+        phoneNotWorking: { type: Number },
+        touchscreenNotWorking: { type: Number },
+        displayNotOriginal: { type: Number },
+        noWarranty: { type: Number },
+      },
+      backPanel: {
+        NO_DEFECTS: { type: Number, default: 0 },
+        MINOR_SCRATCHES: { type: Number },
+        HEAVY_SCRATCHES: { type: Number },
+        BACK_PANEL_BROKEN: { type: Number },
+      },
+      sidePanel: {
+        NO_DEFECTS: { type: Number, default: 0 },
+        MINOR_DENT_OR_SCRATCHES: { type: Number },
+        HEAVY_DENT: { type: Number },
+        BENT_OR_BROKEN: { type: Number },
+      },
+      hardwareFaults: {
+        volumeButtonNotWorking: { type: Number },
+        wifiOrBluetoothNotWorking: { type: Number },
+        chargingPortNotWorking: { type: Number },
+        proximitySensorNotWorking: { type: Number },
+        powerButtonNotWorking: { type: Number },
+        earSpeakerNotWorking: { type: Number },
+        vibratorNotWorking: { type: Number },
       },
     },
     deductionPercentages: { type: Schema.Types.Mixed },

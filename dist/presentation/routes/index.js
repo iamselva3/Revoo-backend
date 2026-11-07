@@ -25,7 +25,7 @@ router.use('/employees', employee_routes_js_1.default);
 router.get('/health', (req, res) => {
     res.status(200).json({
         status: 'HEALTHY',
-        service: 'REVOO Backend API',
+        service: 'Genie Backend API',
         timestamp: new Date().toISOString(),
         uptimeSeconds: process.uptime(),
     });
