@@ -115,6 +115,24 @@ export class CatalogueController {
         modelName,
         brandName,
         basePrice: customBasePrice,
+        declaredCondition,
+        // DOFY fields
+        basicQuestions,
+        backPanelCondition,
+        sidePanelCondition,
+        hardwareFaults,
+        isPhoneWorking,
+        isTouchscreenWorking,
+        isDisplayOriginal,
+        hasValidWarranty,
+        volumeButtonNotWorking,
+        wifiOrBluetoothNotWorking,
+        chargingPortNotWorking,
+        proximitySensorNotWorking,
+        powerButtonNotWorking,
+        earSpeakerNotWorking,
+        vibratorNotWorking,
+        // Legacy fields
         displayCondition = 'FLAWLESS',
         bodyCondition = 'FLAWLESS',
         batteryHealth = 'ABOVE_85',
@@ -190,6 +208,52 @@ export class CatalogueController {
         }
       }
 
+      // Resolve DOFY conditions from structured or flattened input
+      const resolvedBasicQuestions = declaredCondition?.basicQuestions || basicQuestions || (
+        isPhoneWorking !== undefined || isTouchscreenWorking !== undefined || isDisplayOriginal !== undefined || hasValidWarranty !== undefined
+          ? {
+              isPhoneWorking: isPhoneWorking !== false && isPhoneWorking !== 'false',
+              isTouchscreenWorking: isTouchscreenWorking !== false && isTouchscreenWorking !== 'false',
+              isDisplayOriginal: isDisplayOriginal !== false && isDisplayOriginal !== 'false',
+              hasValidWarranty: hasValidWarranty === true || hasValidWarranty === 'true',
+            }
+          : undefined
+      );
+
+      const resolvedBackPanel = declaredCondition?.backPanelCondition || backPanelCondition;
+      const resolvedSidePanel = declaredCondition?.sidePanelCondition || sidePanelCondition;
+
+      const resolvedHardwareFaults = declaredCondition?.hardwareFaults || hardwareFaults || (
+        volumeButtonNotWorking !== undefined || powerButtonNotWorking !== undefined || chargingPortNotWorking !== undefined ||
+        wifiOrBluetoothNotWorking !== undefined || proximitySensorNotWorking !== undefined || earSpeakerNotWorking !== undefined || vibratorNotWorking !== undefined
+          ? {
+              volumeButtonNotWorking: volumeButtonNotWorking === true || volumeButtonNotWorking === 'true',
+              wifiOrBluetoothNotWorking: wifiOrBluetoothNotWorking === true || wifiOrBluetoothNotWorking === 'true',
+              chargingPortNotWorking: chargingPortNotWorking === true || chargingPortNotWorking === 'true',
+              proximitySensorNotWorking: proximitySensorNotWorking === true || proximitySensorNotWorking === 'true',
+              powerButtonNotWorking: powerButtonNotWorking === true || powerButtonNotWorking === 'true',
+              earSpeakerNotWorking: earSpeakerNotWorking === true || earSpeakerNotWorking === 'true',
+              vibratorNotWorking: vibratorNotWorking === true || vibratorNotWorking === 'true',
+            }
+          : undefined
+      );
+
+      const resolvedBox = declaredCondition?.hasOriginalBox ?? (hasOriginalBox === true || hasOriginalBox === 'true');
+      const resolvedCharger = declaredCondition?.hasOriginalCharger ?? (hasOriginalCharger === true || hasOriginalCharger === 'true');
+
+      const fullCondition: any = {
+        basicQuestions: resolvedBasicQuestions,
+        backPanelCondition: resolvedBackPanel,
+        sidePanelCondition: resolvedSidePanel,
+        hardwareFaults: resolvedHardwareFaults,
+        displayCondition: displayCondition || 'FLAWLESS',
+        bodyCondition: bodyCondition || 'FLAWLESS',
+        batteryHealth: batteryHealth || 'ABOVE_85',
+        functionalFaults: functionalFaults || {},
+        hasOriginalBox: !!resolvedBox,
+        hasOriginalCharger: !!resolvedCharger,
+      };
+
       let valuation: any;
       if (pricingRule) {
         valuation = ValuationEngine.calculate(
@@ -204,133 +268,76 @@ export class CatalogueController {
             isActive: pricingRule.isActive,
             effectiveFrom: pricingRule.effectiveFrom,
           },
-          {
-            displayCondition,
-            bodyCondition,
-            batteryHealth,
-            functionalFaults,
-            hasOriginalBox: !!hasOriginalBox,
-            hasOriginalCharger: !!hasOriginalCharger,
-          }
+          fullCondition
         );
       } else {
-        // Standard high-accuracy REVOO formula
-        const breakdown: any[] = [];
-        breakdown.push({
-          component: 'Base Price',
-          description: 'Standard model base valuation',
-          adjustment: effectiveBasePrice,
-        });
-
-        if (storageModifier !== 0) {
-          breakdown.push({
-            component: 'Storage Variant',
-            description: 'Capacity price adjustment',
-            adjustment: storageModifier,
-          });
-        }
-
-        let totalDeductions = 0;
-        let totalBonuses = 0;
-
-        // Display Condition Deductions
-        const displayDeductions: Record<string, number> = {
-          FLAWLESS: 0,
-          MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.08),
-          DEEP_SCRATCHES: Math.round(effectiveBasePrice * 0.18),
-          CRACKED: Math.round(effectiveBasePrice * 0.35),
-        };
-        const dispPen = displayDeductions[displayCondition] ?? 0;
-        if (dispPen > 0) {
-          totalDeductions += dispPen;
-          breakdown.push({
-            component: 'Display Condition',
-            description: `Deduction for ${displayCondition.toLowerCase().replace(/_/g, ' ')}`,
-            adjustment: -dispPen,
-          });
-        }
-
-        // Body Condition Deductions
-        const bodyDeductions: Record<string, number> = {
-          FLAWLESS: 0,
-          MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.05),
-          DENTS_OR_SCUFFS: Math.round(effectiveBasePrice * 0.12),
-          BENT_OR_BROKEN: Math.round(effectiveBasePrice * 0.25),
-        };
-        const bodyPen = bodyDeductions[bodyCondition] ?? 0;
-        if (bodyPen > 0) {
-          totalDeductions += bodyPen;
-          breakdown.push({
-            component: 'Body Condition',
-            description: `Deduction for ${bodyCondition.toLowerCase().replace(/_/g, ' ')}`,
-            adjustment: -bodyPen,
-          });
-        }
-
-        // Battery Health Deductions
-        const batteryDeductions: Record<string, number> = {
-          ABOVE_85: 0,
-          BETWEEN_75_85: Math.round(effectiveBasePrice * 0.05),
-          BELOW_75: Math.round(effectiveBasePrice * 0.12),
-        };
-        const battPen = batteryDeductions[batteryHealth] ?? 0;
-        if (battPen > 0) {
-          totalDeductions += battPen;
-          breakdown.push({
-            component: 'Battery Health',
-            description: `Deduction for ${batteryHealth.toLowerCase().replace(/_/g, ' ')} condition`,
-            adjustment: -battPen,
-          });
-        }
-
-        // Functional Faults Deductions
-        const faultsMap: Record<string, { label: string; rate: number }> = {
-          frontCameraFaulty: { label: 'Front Camera Fault', rate: 0.08 },
-          backCameraFaulty: { label: 'Rear Camera System Fault', rate: 0.12 },
-          faceIdOrFingerprintFaulty: { label: 'Biometrics Sensor Fault', rate: 0.10 },
-          speakerOrMicFaulty: { label: 'Audio / Speaker / Mic Fault', rate: 0.06 },
-          chargingPortFaulty: { label: 'Charging Port / USB Fault', rate: 0.07 },
-          wirelessOrBluetoothFaulty: { label: 'Wireless / Bluetooth Connectivity Fault', rate: 0.08 },
-        };
-        for (const [faultKey, val] of Object.entries(faultsMap)) {
-          if (functionalFaults && functionalFaults[faultKey] === true) {
-            const pen = Math.round(effectiveBasePrice * val.rate);
-            totalDeductions += pen;
-            breakdown.push({
-              component: 'Hardware Fault',
-              description: val.label,
-              adjustment: -pen,
-            });
-          }
-        }
-
-        // Accessories Bonuses
-        if (hasOriginalBox) {
-          totalBonuses += 500;
-          breakdown.push({
-            component: 'Original Packaging',
-            description: 'Original retail box included',
-            adjustment: 500,
-          });
-        }
-        if (hasOriginalCharger) {
-          totalBonuses += 500;
-          breakdown.push({
-            component: 'Original Accessories',
-            description: 'Original power adapter & cable included',
-            adjustment: 500,
-          });
-        }
-
-        const calculated = Math.max(1000, effectiveBasePrice + storageModifier - totalDeductions + totalBonuses);
-        valuation = {
+        const dummyRule: any = {
+          id: 'default',
+          modelId: targetModelId?.toString() || 'default',
+          variantId: '',
           basePrice: effectiveBasePrice,
-          storageAdjustment: storageModifier,
-          totalDeductions,
-          totalBonuses,
-          finalCalculatedAmount: Math.round(calculated),
-          breakdown,
+          storagePriceAdjustment: storageModifier,
+          deductions: {
+            display: {
+              FLAWLESS: 0,
+              MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.08),
+              DEEP_SCRATCHES: Math.round(effectiveBasePrice * 0.15),
+              CRACKED_GLASS: Math.round(effectiveBasePrice * 0.30),
+              BROKEN_OR_DEAD_PIXELS: Math.round(effectiveBasePrice * 0.50),
+            },
+            body: {
+              FLAWLESS: 0,
+              MINOR_SIGNS_OF_USE: Math.round(effectiveBasePrice * 0.04),
+              DENTED_OR_SCRATCHED: Math.round(effectiveBasePrice * 0.10),
+              BENT_OR_CRACKED_BACK: Math.round(effectiveBasePrice * 0.20),
+            },
+            battery: {
+              EXCELLENT: 0,
+              GOOD: Math.round(effectiveBasePrice * 0.05),
+              DEGRADED: Math.round(effectiveBasePrice * 0.10),
+            },
+            functional: {
+              frontCameraFaulty: Math.round(effectiveBasePrice * 0.08),
+              backCameraFaulty: Math.round(effectiveBasePrice * 0.12),
+              faceIdOrFingerprintFaulty: Math.round(effectiveBasePrice * 0.10),
+              speakerOrMicFaulty: Math.round(effectiveBasePrice * 0.05),
+              chargingPortFaulty: Math.round(effectiveBasePrice * 0.06),
+              wirelessOrBluetoothFaulty: Math.round(effectiveBasePrice * 0.07),
+            },
+            basicQuestions: {
+              phoneNotWorking: Math.round(effectiveBasePrice * 0.60),
+              touchscreenNotWorking: Math.round(effectiveBasePrice * 0.15),
+              displayNotOriginal: Math.round(effectiveBasePrice * 0.10),
+              noWarranty: Math.round(effectiveBasePrice * 0.05),
+            },
+            backPanel: {
+              NO_DEFECTS: 0,
+              MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.03),
+              HEAVY_SCRATCHES: Math.round(effectiveBasePrice * 0.08),
+              BACK_PANEL_BROKEN: Math.round(effectiveBasePrice * 0.15),
+            },
+            sidePanel: {
+              NO_DEFECTS: 0,
+              MINOR_DENT_OR_SCRATCHES: Math.round(effectiveBasePrice * 0.03),
+              HEAVY_DENT: Math.round(effectiveBasePrice * 0.08),
+              BENT_OR_BROKEN: Math.round(effectiveBasePrice * 0.12),
+            },
+            hardwareFaults: {
+              powerButtonNotWorking: Math.round(effectiveBasePrice * 0.05),
+              volumeButtonNotWorking: Math.round(effectiveBasePrice * 0.03),
+              chargingPortNotWorking: Math.round(effectiveBasePrice * 0.08),
+              earSpeakerNotWorking: Math.round(effectiveBasePrice * 0.03),
+              proximitySensorNotWorking: Math.round(effectiveBasePrice * 0.03),
+              wifiOrBluetoothNotWorking: Math.round(effectiveBasePrice * 0.05),
+              vibratorNotWorking: Math.round(effectiveBasePrice * 0.02),
+            },
+          },
+          version: 1,
+          isActive: true,
+          effectiveFrom: new Date(),
         };
+
+        valuation = ValuationEngine.calculate(dummyRule, fullCondition);
       }
 
       res.status(200).json({

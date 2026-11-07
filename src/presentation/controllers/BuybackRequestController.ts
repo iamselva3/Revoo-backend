@@ -73,6 +73,36 @@ export class BuybackRequestController {
         });
       }
 
+      // Normalize declared condition for both DOFY and legacy formats
+      const normCondition: any = { ...(declaredCondition || {}) };
+      if (!normCondition.basicQuestions && (
+        normCondition.isPhoneWorking !== undefined || normCondition.isTouchscreenWorking !== undefined ||
+        normCondition.isDisplayOriginal !== undefined || normCondition.hasValidWarranty !== undefined
+      )) {
+        normCondition.basicQuestions = {
+          isPhoneWorking: normCondition.isPhoneWorking !== false && normCondition.isPhoneWorking !== 'false',
+          isTouchscreenWorking: normCondition.isTouchscreenWorking !== false && normCondition.isTouchscreenWorking !== 'false',
+          isDisplayOriginal: normCondition.isDisplayOriginal !== false && normCondition.isDisplayOriginal !== 'false',
+          hasValidWarranty: normCondition.hasValidWarranty === true || normCondition.hasValidWarranty === 'true',
+        };
+      }
+      if (!normCondition.hardwareFaults && (
+        normCondition.volumeButtonNotWorking !== undefined || normCondition.powerButtonNotWorking !== undefined ||
+        normCondition.chargingPortNotWorking !== undefined || normCondition.wifiOrBluetoothNotWorking !== undefined ||
+        normCondition.proximitySensorNotWorking !== undefined || normCondition.earSpeakerNotWorking !== undefined ||
+        normCondition.vibratorNotWorking !== undefined
+      )) {
+        normCondition.hardwareFaults = {
+          volumeButtonNotWorking: normCondition.volumeButtonNotWorking === true || normCondition.volumeButtonNotWorking === 'true',
+          wifiOrBluetoothNotWorking: normCondition.wifiOrBluetoothNotWorking === true || normCondition.wifiOrBluetoothNotWorking === 'true',
+          chargingPortNotWorking: normCondition.chargingPortNotWorking === true || normCondition.chargingPortNotWorking === 'true',
+          proximitySensorNotWorking: normCondition.proximitySensorNotWorking === true || normCondition.proximitySensorNotWorking === 'true',
+          powerButtonNotWorking: normCondition.powerButtonNotWorking === true || normCondition.powerButtonNotWorking === 'true',
+          earSpeakerNotWorking: normCondition.earSpeakerNotWorking === true || normCondition.earSpeakerNotWorking === 'true',
+          vibratorNotWorking: normCondition.vibratorNotWorking === true || normCondition.vibratorNotWorking === 'true',
+        };
+      }
+
       const valuation = ValuationEngine.calculate(
         {
           id: pricingRule._id.toString(),
@@ -85,12 +115,12 @@ export class BuybackRequestController {
           isActive: pricingRule.isActive,
           effectiveFrom: pricingRule.effectiveFrom,
         },
-        declaredCondition
+        normCondition
       );
 
-      // Generate unique sequential request number: REV-2026-XXXX
+      // Generate unique sequential request number: GENIE-2026-XXXX
       const count = await BuybackRequestModel.countDocuments();
-      const requestNumber = `REV-${new Date().getFullYear()}-${(1000 + count + 1).toString()}`;
+      const requestNumber = `GENIE-${new Date().getFullYear()}-${(1000 + count + 1).toString()}`;
 
       const buybackRequest = await BuybackRequestModel.create({
         requestNumber,
