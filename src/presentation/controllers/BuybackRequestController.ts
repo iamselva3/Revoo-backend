@@ -24,7 +24,12 @@ export class BuybackRequestController {
   public static async submitRequest(req: AuthenticatedCustomerRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
-      const { modelId, variantId, declaredCondition, pickupAddress, photoUrls } = req.body;
+      const rawBody = req.body || {};
+      const modelId = rawBody.modelId || rawBody.device?.modelId || rawBody.device?.modelName;
+      const variantId = rawBody.variantId || rawBody.device?.variantId;
+      const declaredCondition = rawBody.declaredCondition || rawBody.conditions || {};
+      const pickupAddress = rawBody.pickupAddress;
+      const photoUrls = rawBody.photoUrls;
 
       let model: any = null;
       if (mongoose.Types.ObjectId.isValid(modelId)) {

@@ -26,7 +26,12 @@ class BuybackRequestController {
     static async submitRequest(req, res, next) {
         try {
             const userId = req.user?.id;
-            const { modelId, variantId, declaredCondition, pickupAddress, photoUrls } = req.body;
+            const rawBody = req.body || {};
+            const modelId = rawBody.modelId || rawBody.device?.modelId || rawBody.device?.modelName;
+            const variantId = rawBody.variantId || rawBody.device?.variantId;
+            const declaredCondition = rawBody.declaredCondition || rawBody.conditions || {};
+            const pickupAddress = rawBody.pickupAddress;
+            const photoUrls = rawBody.photoUrls;
             let model = null;
             if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
                 model = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId).populate('brandId', 'name');
