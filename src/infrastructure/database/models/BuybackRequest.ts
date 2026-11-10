@@ -56,6 +56,8 @@ export interface IBuybackRequestDocument extends Document {
     landmark?: string;
     preferredSlot?: string;
   };
+  scheduledPickupDate?: string;
+  preferredTimeWindow?: string;
   status: RequestStatus;
   timeline: Array<{
     status: RequestStatus;
@@ -156,6 +158,8 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
       landmark: { type: String },
       preferredSlot: { type: String },
     },
+    scheduledPickupDate: { type: String },
+    preferredTimeWindow: { type: String },
     status: {
       type: String,
       enum: Object.values(RequestStatus),

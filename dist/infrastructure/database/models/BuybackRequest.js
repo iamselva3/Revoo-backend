@@ -112,6 +112,8 @@ const BuybackRequestSchema = new mongoose_1.Schema({
         landmark: { type: String },
         preferredSlot: { type: String },
     },
+    scheduledPickupDate: { type: String },
+    preferredTimeWindow: { type: String },
     status: {
         type: String,
         enum: Object.values(types_js_1.RequestStatus),

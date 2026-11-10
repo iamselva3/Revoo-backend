@@ -6,6 +6,7 @@ const GoogleAuthService_js_1 = require("../../infrastructure/security/GoogleAuth
 const User_js_1 = require("../../infrastructure/database/models/User.js");
 const AdminUser_js_1 = require("../../infrastructure/database/models/AdminUser.js");
 const OtpRecord_js_1 = require("../../infrastructure/database/models/OtpRecord.js");
+const BuybackRequest_js_1 = require("../../infrastructure/database/models/BuybackRequest.js");
 const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
 const types_js_1 = require("../../shared/types.js");
 const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
@@ -496,6 +497,18 @@ class AuthController {
             const user = await User_js_1.UserModel.findById(req.user?.id);
             if (!user)
                 return next(new types_js_1.AppError('User not found', 404));
+            // If user profile is missing a phone number, search their latest buyback request to sync
+            if (!user.phone) {
+                const latestReq = await BuybackRequest_js_1.BuybackRequestModel.findOne({ userId: user._id }).sort({ createdAt: -1 });
+                if (latestReq) {
+                    const possiblePhone = (latestReq.customerDetails?.phone && latestReq.customerDetails.phone !== 'N/A' && latestReq.customerDetails.phone) ||
+                        latestReq.pickupAddress?.phone;
+                    if (possiblePhone) {
+                        user.phone = possiblePhone;
+                        await user.save();
+                    }
+                }
+            }
             res.status(200).json({
                 success: true,
                 data: {

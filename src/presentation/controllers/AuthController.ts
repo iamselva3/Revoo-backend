@@ -4,6 +4,7 @@ import { GoogleAuthService } from '../../infrastructure/security/GoogleAuthServi
 import { UserModel } from '../../infrastructure/database/models/User.js';
 import { AdminUserModel } from '../../infrastructure/database/models/AdminUser.js';
 import { OtpRecordModel } from '../../infrastructure/database/models/OtpRecord.js';
+import { BuybackRequestModel } from '../../infrastructure/database/models/BuybackRequest.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
 import { AppError, UserStatus } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
@@ -539,6 +540,20 @@ export class AuthController {
     try {
       const user = await UserModel.findById(req.user?.id);
       if (!user) return next(new AppError('User not found', 404));
+
+      // If user profile is missing a phone number, search their latest buyback request to sync
+      if (!user.phone) {
+        const latestReq = await BuybackRequestModel.findOne({ userId: user._id }).sort({ createdAt: -1 });
+        if (latestReq) {
+          const possiblePhone =
+            (latestReq.customerDetails?.phone && latestReq.customerDetails.phone !== 'N/A' && latestReq.customerDetails.phone) ||
+            (latestReq.pickupAddress as any)?.phone;
+          if (possiblePhone) {
+            user.phone = possiblePhone;
+            await user.save();
+          }
+        }
+      }
 
       res.status(200).json({
         success: true,

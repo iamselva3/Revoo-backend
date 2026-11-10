@@ -17,6 +17,7 @@ import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedCustomerRequest, AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
 import { StorageService } from '../../infrastructure/storage/StorageService.js';
 import { DeviceImageModel } from '../../infrastructure/database/models/DeviceImage.js';
+import { UserModel } from '../../infrastructure/database/models/User.js';
 import { config } from '../../config/index.js';
 
 export class BuybackRequestController {
@@ -127,6 +128,32 @@ export class BuybackRequestController {
         normCondition
       );
 
+      // Resolve Customer Contact Details
+      const customerFullName =
+        rawBody.pickupAddress?.fullName ||
+        rawBody.customer?.fullName ||
+        (req.user as any)?.fullName ||
+        req.user?.email ||
+        'Valued Customer';
+      const customerPhone =
+        rawBody.pickupAddress?.phone ||
+        rawBody.customer?.phone ||
+        rawBody.phone ||
+        req.user?.phone ||
+        'N/A';
+
+      // If user profile is missing a phone number, update UserModel permanently
+      if (userId && customerPhone && customerPhone !== 'N/A') {
+        const userDoc = await UserModel.findById(userId);
+        if (userDoc && !userDoc.phone) {
+          userDoc.phone = customerPhone;
+          if (customerFullName && customerFullName !== 'Valued Customer' && !userDoc.fullName) {
+            userDoc.fullName = customerFullName;
+          }
+          await userDoc.save();
+        }
+      }
+
       // Generate unique sequential request number: GENIE-2026-XXXX
       const count = await BuybackRequestModel.countDocuments();
       const requestNumber = `GENIE-${new Date().getFullYear()}-${(1000 + count + 1).toString()}`;
@@ -135,8 +162,8 @@ export class BuybackRequestController {
         requestNumber,
         userId,
         customerDetails: {
-          fullName: req.user?.email || req.user?.phone || 'Valued Customer',
-          phone: req.user?.phone || 'N/A',
+          fullName: customerFullName,
+          phone: customerPhone,
           email: req.user?.email,
         },
         deviceDetails: {
@@ -159,6 +186,8 @@ export class BuybackRequestController {
         },
         photoUrls: photoUrls || [],
         pickupAddress,
+        scheduledPickupDate: rawBody.scheduledPickupDate || rawBody.pickupAddress?.scheduledDate || rawBody.pickupAddress?.preferredSlot,
+        preferredTimeWindow: rawBody.preferredTimeWindow || rawBody.pickupAddress?.preferredSlot,
         status: RequestStatus.SUBMITTED,
         timeline: [
           {
@@ -193,7 +222,53 @@ export class BuybackRequestController {
   public static async getMyRequests(req: AuthenticatedCustomerRequest, res: Response, next: NextFunction) {
     try {
       const requests = await BuybackRequestModel.find({ userId: req.user?.id }).sort({ createdAt: -1 });
-      res.status(200).json({ success: true, data: requests });
+
+      // If user profile is missing a phone number, sync from historical requests
+      if (req.user?.id && requests.length > 0) {
+        const userDoc = await UserModel.findById(req.user.id);
+        if (userDoc && !userDoc.phone) {
+          const foundPhone =
+            requests.find((r) => r.customerDetails?.phone && r.customerDetails.phone !== 'N/A')?.customerDetails?.phone ||
+            (requests[0].pickupAddress as any)?.phone;
+          if (foundPhone && foundPhone !== 'N/A') {
+            userDoc.phone = foundPhone;
+            await userDoc.save();
+          }
+        }
+      }
+
+      const mapped = requests.map((r: any) => {
+        const obj = r.toObject ? r.toObject() : r;
+        return {
+          ...obj,
+          device: {
+            brand: obj.deviceDetails?.brandName || obj.device?.brand || '',
+            modelName: obj.deviceDetails?.modelName || obj.device?.modelName || 'Smartphone',
+            variant: obj.deviceDetails?.storageCapacity || obj.device?.variant || '',
+          },
+          customer: {
+            fullName: obj.customerDetails?.fullName || obj.pickupAddress?.fullName || '',
+            phone: obj.customerDetails?.phone || obj.pickupAddress?.phone || '',
+          },
+          scheduledPickupDate:
+            obj.scheduledPickupDate ||
+            obj.pickupAddress?.scheduledDate ||
+            obj.pickupAddress?.preferredSlot ||
+            obj.assignedCollector?.scheduledDate ||
+            (obj.createdAt ? new Date(obj.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tomorrow'),
+          preferredTimeWindow:
+            obj.preferredTimeWindow ||
+            obj.pickupAddress?.preferredSlot ||
+            obj.assignedCollector?.timeSlot ||
+            '10:00 AM - 1:00 PM',
+          indicativeValuation:
+            obj.indicativeEstimate?.estimatedAmount ||
+            obj.indicativeValuation ||
+            0,
+        };
+      });
+
+      res.status(200).json({ success: true, data: mapped });
     } catch (err) {
       next(err);
     }
@@ -212,7 +287,36 @@ export class BuybackRequestController {
         return next(new AppError('Buyback request not found.', 404));
       }
 
-      res.status(200).json({ success: true, data: request });
+      const obj: any = request.toObject();
+      const normalized = {
+        ...obj,
+        device: {
+          brand: obj.deviceDetails?.brandName || obj.device?.brand || '',
+          modelName: obj.deviceDetails?.modelName || obj.device?.modelName || 'Smartphone',
+          variant: obj.deviceDetails?.storageCapacity || obj.device?.variant || '',
+        },
+        customer: {
+          fullName: obj.customerDetails?.fullName || obj.pickupAddress?.fullName || '',
+          phone: obj.customerDetails?.phone || obj.pickupAddress?.phone || '',
+        },
+        scheduledPickupDate:
+          obj.scheduledPickupDate ||
+          obj.pickupAddress?.scheduledDate ||
+          obj.pickupAddress?.preferredSlot ||
+          obj.assignedCollector?.scheduledDate ||
+          (obj.createdAt ? new Date(obj.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tomorrow'),
+        preferredTimeWindow:
+          obj.preferredTimeWindow ||
+          obj.pickupAddress?.preferredSlot ||
+          obj.assignedCollector?.timeSlot ||
+          '10:00 AM - 1:00 PM',
+        indicativeValuation:
+          obj.indicativeEstimate?.estimatedAmount ||
+          obj.indicativeValuation ||
+          0,
+      };
+
+      res.status(200).json({ success: true, data: normalized });
     } catch (err) {
       next(err);
     }
