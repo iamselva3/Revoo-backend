@@ -541,7 +541,21 @@ export class CatalogueController {
 
   public static async adminCreateVariant(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
-      const variant = await StorageVariantModel.create(req.body);
+      const { modelId, priceModifier, isPublished, ram, storage, rom } = req.body;
+      const resolvedStorage = storage || rom || '';
+      let capacity = req.body.capacity;
+      if (!capacity && (ram || resolvedStorage)) {
+        capacity = [ram, resolvedStorage].filter(Boolean).join(' / ');
+      }
+
+      const variant = await StorageVariantModel.create({
+        modelId,
+        capacity,
+        ram: ram || undefined,
+        storage: resolvedStorage || undefined,
+        priceModifier: Number(priceModifier) || 0,
+        isPublished: isPublished !== false,
+      });
 
       // Create pricing rule variation for this storage variant
       const model = await SmartphoneModel.findById(variant.modelId);
@@ -556,7 +570,7 @@ export class CatalogueController {
         });
       }
 
-      res.status(201).json({ success: true, message: 'Storage variant added.', data: variant });
+      res.status(201).json({ success: true, message: 'RAM/Storage variant added.', data: variant });
     } catch (err) {
       next(err);
     }
@@ -898,37 +912,49 @@ export class CatalogueController {
       const sellReviews = [
         {
           id: 'rev-s-1',
+          _id: 'rev-s-1',
           name: 'Arjun Nambiar',
-          city: 'Bengaluru',
+          customerName: 'Arjun Nambiar',
+          city: 'Chennai',
           rating: 5,
           type: 'SELL',
           device: 'iPhone 13 Pro (128GB)',
+          deviceModel: 'iPhone 13 Pro (128GB)',
           amount: 47500,
           quote: 'Sold my iPhone in less than 3 hours from booking. The collection executive tested the screen and transferred ₹47,500 instantly to my Google Pay before stepping out!',
+          comment: 'Sold my iPhone in less than 3 hours from booking. The collection executive tested the screen and transferred ₹47,500 instantly to my Google Pay before stepping out!',
           date: 'Yesterday',
           verified: true,
         },
         {
           id: 'rev-s-2',
+          _id: 'rev-s-2',
           name: 'Pooja Deshmukh',
-          city: 'Pune',
+          customerName: 'Pooja Deshmukh',
+          city: 'Coimbatore',
           rating: 5,
           type: 'SELL',
           device: 'Samsung Galaxy S22 Ultra',
+          deviceModel: 'Samsung Galaxy S22 Ultra',
           amount: 42000,
-          quote: 'Local shops offered only ₹34k citing minor edge wear. REVOO gave an indicative estimate of ₹44k and paid ₹42k after physical check. Truly transparent pricing!',
+          quote: 'Local shops offered only ₹34k citing minor edge wear. Genie gave an indicative estimate of ₹44k and paid ₹42k after physical check. Truly transparent pricing!',
+          comment: 'Local shops offered only ₹34k citing minor edge wear. Genie gave an indicative estimate of ₹44k and paid ₹42k after physical check. Truly transparent pricing!',
           date: '3 days ago',
           verified: true,
         },
         {
           id: 'rev-s-3',
+          _id: 'rev-s-3',
           name: 'Karan Singhania',
-          city: 'Delhi NCR',
+          customerName: 'Karan Singhania',
+          city: 'Madurai',
           rating: 5,
           type: 'SELL',
           device: 'OnePlus 10 Pro',
+          deviceModel: 'OnePlus 10 Pro',
           amount: 26000,
           quote: 'Free doorstep pickup was on exact time. Data erasure certificate gave me complete peace of mind before handing the device over. 10/10 service!',
+          comment: 'Free doorstep pickup was on exact time. Data erasure certificate gave me complete peace of mind before handing the device over. 10/10 service!',
           date: '1 week ago',
           verified: true,
         },
@@ -937,25 +963,33 @@ export class CatalogueController {
       const buyReviews = [
         {
           id: 'rev-b-1',
+          _id: 'rev-b-1',
           name: 'Rohan Varma',
-          city: 'Mumbai',
+          customerName: 'Rohan Varma',
+          city: 'Chennai',
           rating: 5,
           type: 'BUY',
           device: 'Certified iPhone 14 Pro',
+          deviceModel: 'Certified iPhone 14 Pro',
           amount: 66999,
-          quote: 'Got this pristine iPhone 14 Pro at almost half price. Battery health is at 98%, not a single mark on the display, and 1-year REVOO warranty card was inside the box!',
+          quote: 'Got this pristine iPhone 14 Pro at almost half price. Battery health is at 98%, not a single mark on the display, and 1-year Genie warranty card was inside the box!',
+          comment: 'Got this pristine iPhone 14 Pro at almost half price. Battery health is at 98%, not a single mark on the display, and 1-year Genie warranty card was inside the box!',
           date: '2 days ago',
           verified: true,
         },
         {
           id: 'rev-b-2',
+          _id: 'rev-b-2',
           name: 'Meera Iyer',
-          city: 'Chennai',
+          customerName: 'Meera Iyer',
+          city: 'Coimbatore',
           rating: 5,
           type: 'BUY',
           device: 'Galaxy S23 Ultra',
+          deviceModel: 'Galaxy S23 Ultra',
           amount: 58999,
           quote: 'Looked completely brand new. 32-point inspection diagnostic report was shared with the delivery. Best experience buying refurbished electronics in India.',
+          comment: 'Looked completely brand new. 32-point inspection diagnostic report was shared with the delivery. Best experience buying refurbished electronics in India.',
           date: '4 days ago',
           verified: true,
         },
