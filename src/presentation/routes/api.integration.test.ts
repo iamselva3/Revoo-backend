@@ -1,14 +1,14 @@
 import request from 'supertest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import app from '../../app';
-import { AdminUserModel } from '../../infrastructure/database/models/AdminUser';
-import { BrandModel } from '../../infrastructure/database/models/Brand';
-import { SmartphoneModel } from '../../infrastructure/database/models/SmartphoneModel';
-import { StorageVariantModel } from '../../infrastructure/database/models/StorageVariant';
-import { PricingRuleModel } from '../../infrastructure/database/models/PricingRule';
-import { TokenService } from '../../infrastructure/security/tokenService';
-import { AdminRole } from '../../shared/types';
+import app from '../../app.js';
+import { AdminUserModel } from '../../infrastructure/database/models/AdminUser.js';
+import { BrandModel } from '../../infrastructure/database/models/Brand.js';
+import { SmartphoneModel } from '../../infrastructure/database/models/SmartphoneModel.js';
+import { StorageVariantModel } from '../../infrastructure/database/models/StorageVariant.js';
+import { PricingRuleModel } from '../../infrastructure/database/models/PricingRule.js';
+import { TokenService } from '../../infrastructure/security/tokenService.js';
+import { AdminRole } from '../../shared/types.js';
 
 describe('REVOO Backend Integration Tests', () => {
   let mongoServer: MongoMemoryServer;
@@ -192,11 +192,12 @@ describe('REVOO Backend Integration Tests', () => {
           },
           hasOriginalBox: true,
           hasOriginalCharger: true,
+          hasValidBill: true,
         });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.valuation.finalCalculatedAmount).toBe(76000); // 70000 base + 5000 storage + 1000 bonuses
+      expect(res.body.data.valuation.finalCalculatedAmount).toBe(75000); // 70000 base + 5000 storage modifier with full accessories pool
       expect(res.body.data.disclaimer).toBeDefined();
     });
   });

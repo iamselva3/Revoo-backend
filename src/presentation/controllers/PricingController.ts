@@ -216,7 +216,18 @@ export class PricingController {
   public static async updatePricingRule(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
       const { modelId } = req.params;
-      const { variantId, basePrice, storagePriceAdjustment, deductions, deductionPercentages, reasonForChange } = req.body;
+      const {
+        variantId,
+        basePrice,
+        storagePriceAdjustment,
+        deductions,
+        deductionPercentages,
+        minScrapPrice,
+        customDeductions,
+        customPercentages,
+        criticalKeys,
+        reasonForChange,
+      } = req.body;
 
       const query: any = { modelId, isActive: true };
       if (variantId) query.variantId = variantId;
@@ -239,11 +250,15 @@ export class PricingController {
         storagePriceAdjustment: storagePriceAdjustment || 0,
         deductions,
         deductionPercentages,
+        minScrapPrice,
+        customDeductions,
+        customPercentages,
+        criticalKeys,
         version: newVersion,
         isActive: true,
         effectiveFrom: new Date(),
         updatedByAdminId: req.admin?.id,
-      });
+      } as any);
 
       // Record detailed pricing history audit
       await PricingHistoryModel.create({

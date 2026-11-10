@@ -114,7 +114,7 @@ class CatalogueController {
             // DOFY fields
             basicQuestions, backPanelCondition, sidePanelCondition, hardwareFaults, isPhoneWorking, isTouchscreenWorking, isDisplayOriginal, hasValidWarranty, volumeButtonNotWorking, wifiOrBluetoothNotWorking, chargingPortNotWorking, proximitySensorNotWorking, powerButtonNotWorking, earSpeakerNotWorking, vibratorNotWorking, 
             // Legacy fields
-            displayCondition = 'FLAWLESS', bodyCondition = 'FLAWLESS', batteryHealth = 'ABOVE_85', functionalFaults = {}, hasOriginalBox = false, hasOriginalCharger = false, } = req.body;
+            displayCondition = 'FLAWLESS', bodyCondition = 'FLAWLESS', batteryHealth = 'ABOVE_85', functionalFaults = {}, hasOriginalBox = false, hasOriginalCharger = false, hasValidBill = false, } = req.body;
             let pricingRule = null;
             let modelDoc = null;
             let effectiveBasePrice = typeof customBasePrice === 'number' && customBasePrice > 0 ? customBasePrice : 0;
@@ -207,9 +207,14 @@ class CatalogueController {
                     vibratorNotWorking: vibratorNotWorking === true || vibratorNotWorking === 'true',
                 }
                 : undefined);
-            const resolvedBox = declaredCondition?.hasOriginalBox ?? (hasOriginalBox === true || hasOriginalBox === 'true');
-            const resolvedCharger = declaredCondition?.hasOriginalCharger ?? (hasOriginalCharger === true || hasOriginalCharger === 'true');
+            const resolvedBox = declaredCondition?.hasOriginalBox ?? (hasOriginalBox === true || hasOriginalBox === 'true' || req.body.box_same_imei === true);
+            const resolvedCharger = declaredCondition?.hasOriginalCharger ?? (hasOriginalCharger === true || hasOriginalCharger === 'true' || req.body.original_charger === true);
+            const resolvedBill = declaredCondition?.hasValidBill ?? declaredCondition?.bill_same_imei ?? (hasValidBill === true || hasValidBill === 'true' || req.body.bill_same_imei === true ||
+                (req.body.hasValidWarranty !== undefined ? (req.body.hasValidWarranty === true || req.body.hasValidWarranty === 'true') : false) ||
+                (basicQuestions?.hasValidWarranty !== undefined ? (basicQuestions.hasValidWarranty === true || basicQuestions.hasValidWarranty === 'true') : false));
             const fullCondition = {
+                ...req.body,
+                ...(declaredCondition || {}),
                 basicQuestions: resolvedBasicQuestions,
                 backPanelCondition: resolvedBackPanel,
                 sidePanelCondition: resolvedSidePanel,
@@ -220,99 +225,95 @@ class CatalogueController {
                 functionalFaults: functionalFaults || {},
                 hasOriginalBox: !!resolvedBox,
                 hasOriginalCharger: !!resolvedCharger,
+                hasValidBill: !!resolvedBill,
+                bill_same_imei: !!resolvedBill,
+                box_same_imei: !!resolvedBox,
+                original_charger: !!resolvedCharger,
             };
-            let valuation;
-            if (pricingRule) {
-                valuation = ValuationEngine_js_1.ValuationEngine.calculate({
-                    id: pricingRule._id.toString(),
-                    modelId: pricingRule.modelId.toString(),
-                    variantId: pricingRule.variantId?.toString() || '',
-                    basePrice: pricingRule.basePrice,
-                    storagePriceAdjustment: pricingRule.storagePriceAdjustment,
-                    deductions: pricingRule.deductions,
-                    version: pricingRule.version,
-                    isActive: pricingRule.isActive,
-                    effectiveFrom: pricingRule.effectiveFrom,
-                }, fullCondition);
+            // Check for unmapped or unexpected fields in request and log warnings
+            const unmappedFields = [];
+            const hf = (fullCondition.hardwareFaults || {});
+            if (hf.proximitySensorNotWorking || fullCondition.proximitySensorNotWorking) {
+                unmappedFields.push('proximitySensorNotWorking (no deduction rate in Dofy model)');
             }
-            else {
-                const dummyRule = {
-                    id: 'default',
-                    modelId: targetModelId?.toString() || 'default',
-                    variantId: '',
-                    basePrice: effectiveBasePrice,
-                    storagePriceAdjustment: storageModifier,
-                    deductions: {
-                        display: {
-                            FLAWLESS: 0,
-                            MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.08),
-                            DEEP_SCRATCHES: Math.round(effectiveBasePrice * 0.15),
-                            CRACKED_GLASS: Math.round(effectiveBasePrice * 0.30),
-                            BROKEN_OR_DEAD_PIXELS: Math.round(effectiveBasePrice * 0.50),
-                        },
-                        body: {
-                            FLAWLESS: 0,
-                            MINOR_SIGNS_OF_USE: Math.round(effectiveBasePrice * 0.04),
-                            DENTED_OR_SCRATCHED: Math.round(effectiveBasePrice * 0.10),
-                            BENT_OR_CRACKED_BACK: Math.round(effectiveBasePrice * 0.20),
-                        },
-                        battery: {
-                            EXCELLENT: 0,
-                            GOOD: Math.round(effectiveBasePrice * 0.05),
-                            DEGRADED: Math.round(effectiveBasePrice * 0.10),
-                        },
-                        functional: {
-                            frontCameraFaulty: Math.round(effectiveBasePrice * 0.08),
-                            backCameraFaulty: Math.round(effectiveBasePrice * 0.12),
-                            faceIdOrFingerprintFaulty: Math.round(effectiveBasePrice * 0.10),
-                            speakerOrMicFaulty: Math.round(effectiveBasePrice * 0.05),
-                            chargingPortFaulty: Math.round(effectiveBasePrice * 0.06),
-                            wirelessOrBluetoothFaulty: Math.round(effectiveBasePrice * 0.07),
-                        },
-                        basicQuestions: {
-                            phoneNotWorking: Math.round(effectiveBasePrice * 0.60),
-                            touchscreenNotWorking: Math.round(effectiveBasePrice * 0.15),
-                            displayNotOriginal: Math.round(effectiveBasePrice * 0.10),
-                            noWarranty: Math.round(effectiveBasePrice * 0.05),
-                        },
-                        backPanel: {
-                            NO_DEFECTS: 0,
-                            MINOR_SCRATCHES: Math.round(effectiveBasePrice * 0.03),
-                            HEAVY_SCRATCHES: Math.round(effectiveBasePrice * 0.08),
-                            BACK_PANEL_BROKEN: Math.round(effectiveBasePrice * 0.15),
-                        },
-                        sidePanel: {
-                            NO_DEFECTS: 0,
-                            MINOR_DENT_OR_SCRATCHES: Math.round(effectiveBasePrice * 0.03),
-                            HEAVY_DENT: Math.round(effectiveBasePrice * 0.08),
-                            BENT_OR_BROKEN: Math.round(effectiveBasePrice * 0.12),
-                        },
-                        hardwareFaults: {
-                            powerButtonNotWorking: Math.round(effectiveBasePrice * 0.05),
-                            volumeButtonNotWorking: Math.round(effectiveBasePrice * 0.03),
-                            chargingPortNotWorking: Math.round(effectiveBasePrice * 0.08),
-                            earSpeakerNotWorking: Math.round(effectiveBasePrice * 0.03),
-                            proximitySensorNotWorking: Math.round(effectiveBasePrice * 0.03),
-                            wifiOrBluetoothNotWorking: Math.round(effectiveBasePrice * 0.05),
-                            vibratorNotWorking: Math.round(effectiveBasePrice * 0.02),
-                        },
-                    },
-                    version: 1,
-                    isActive: true,
-                    effectiveFrom: new Date(),
-                };
-                valuation = ValuationEngine_js_1.ValuationEngine.calculate(dummyRule, fullCondition);
+            if (hf.vibratorNotWorking || fullCondition.vibratorNotWorking) {
+                unmappedFields.push('vibratorNotWorking (no deduction rate in Dofy model)');
             }
+            const bq = (fullCondition.basicQuestions || {});
+            if (bq.isDisplayOriginal === false || fullCondition.isDisplayOriginal === false) {
+                unmappedFields.push('isDisplayOriginal=false (display original check has no separate deduction in Dofy model)');
+            }
+            if (unmappedFields.length > 0) {
+                console.warn(`[PRICING ENGINE WARNING] Unmapped fields received in estimate request: ${unmappedFields.join(', ')}`);
+            }
+            // STEP 3: Map DB fields to engine's phone object live from DB
+            const baseVariantPrice = pricingRule
+                ? pricingRule.basePrice + (pricingRule.storagePriceAdjustment || 0)
+                : effectiveBasePrice + storageModifier;
+            const phoneData = {
+                basePrice: baseVariantPrice,
+                minScrapPrice: pricingRule?.minScrapPrice ?? pricingRule?.customScrapFloor,
+                customDeductions: pricingRule?.customDeductions ?? pricingRule?.specific_deductions_inr,
+                customPercentages: pricingRule?.customPercentages,
+            };
+            // STEP 4: Map app's answers to engine's input object
+            const engineInput = ValuationEngine_js_1.ValuationEngine.mapConditionToEngineInput(fullCondition);
+            // STEP 5: Config with criticalKeys if configured in DB
+            const engineConfig = {
+                criticalKeys: pricingRule?.criticalKeys ?? pricingRule?.criticalFaults ?? undefined,
+            };
+            // STEP 2 & 6: Authoritative calculation using calculatePrice
+            const engineResult = (0, ValuationEngine_js_1.calculatePrice)(phoneData, engineInput, engineConfig);
+            // Log engine result for every quote for debugging price mismatches
+            console.log('[PRICING ENGINE RESULT]', JSON.stringify(engineResult, null, 2));
+            // Build structured breakdown for mobile app & UI display
+            const valuation = ValuationEngine_js_1.ValuationEngine.calculate(pricingRule || {
+                basePrice: effectiveBasePrice,
+                storagePriceAdjustment: storageModifier,
+                version: 1,
+            }, fullCondition, engineConfig);
             res.status(200).json({
                 success: true,
                 message: 'Indicative estimate calculated successfully.',
                 data: {
-                    valuation,
+                    // STEP 6: Engine's full result object
+                    basePrice: engineResult.basePrice,
+                    scrapFloor: engineResult.scrapFloor,
+                    maxAccPool: engineResult.maxAccPool,
+                    selectedAccBonus: engineResult.selectedAccBonus,
+                    deductions: engineResult.deductions,
+                    totalDeductions: engineResult.totalDeductions,
+                    rawBodyPrice: engineResult.rawBodyPrice,
+                    clampedBodyPrice: engineResult.clampedBodyPrice,
+                    finalPrice: engineResult.finalPrice,
+                    rule: engineResult.rule,
+                    // Valuation object for existing UI and test suite compatibility
+                    valuation: {
+                        ...valuation,
+                        basePrice: engineResult.basePrice,
+                        storageAdjustment: storageModifier || (pricingRule?.storagePriceAdjustment || 0),
+                        scrapFloor: engineResult.scrapFloor,
+                        rawBodyPrice: engineResult.rawBodyPrice ?? engineResult.scrapFloor,
+                        clampedBodyPrice: engineResult.clampedBodyPrice ?? engineResult.scrapFloor,
+                        selectedAccBonus: engineResult.selectedAccBonus,
+                        maxAccPool: engineResult.maxAccPool,
+                        totalDeductions: engineResult.totalDeductions,
+                        totalBonuses: engineResult.selectedAccBonus,
+                        finalCalculatedAmount: engineResult.finalPrice,
+                        finalPrice: engineResult.finalPrice,
+                        rule: engineResult.rule,
+                        deductions: engineResult.deductions,
+                    },
                     disclaimer: 'This is an indicative estimate only. Your final offer will be confirmed after physical inspection of your device.',
                 },
             });
         }
         catch (err) {
+            if (err instanceof Error && (err.message.includes('Unknown condition key') ||
+                err.message.includes('Invalid basePrice') ||
+                err.message.includes('phone_working_condition'))) {
+                return next(new types_js_1.AppError(err.message, 400));
+            }
             next(err);
         }
     }

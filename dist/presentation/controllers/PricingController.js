@@ -211,7 +211,7 @@ class PricingController {
     static async updatePricingRule(req, res, next) {
         try {
             const { modelId } = req.params;
-            const { variantId, basePrice, storagePriceAdjustment, deductions, deductionPercentages, reasonForChange } = req.body;
+            const { variantId, basePrice, storagePriceAdjustment, deductions, deductionPercentages, minScrapPrice, customDeductions, customPercentages, criticalKeys, reasonForChange, } = req.body;
             const query = { modelId, isActive: true };
             if (variantId)
                 query.variantId = variantId;
@@ -231,6 +231,10 @@ class PricingController {
                 storagePriceAdjustment: storagePriceAdjustment || 0,
                 deductions,
                 deductionPercentages,
+                minScrapPrice,
+                customDeductions,
+                customPercentages,
+                criticalKeys,
                 version: newVersion,
                 isActive: true,
                 effectiveFrom: new Date(),

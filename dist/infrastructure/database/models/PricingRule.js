@@ -104,7 +104,7 @@ const PricingRuleSchema = new mongoose_1.Schema({
     isActive: { type: Boolean, default: true, index: true },
     effectiveFrom: { type: Date, default: Date.now },
     updatedByAdminId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'AdminUser' },
-}, { timestamps: true });
+}, { timestamps: true, strict: false });
 PricingRuleSchema.index({ modelId: 1, variantId: 1, isActive: 1 });
 exports.PricingRuleModel = mongoose_1.default.model('PricingRule', PricingRuleSchema);
 //# sourceMappingURL=PricingRule.js.map

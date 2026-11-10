@@ -32,6 +32,16 @@ export const errorHandler = (
     errors = err.errors;
   }
 
+  // Handle Pricing Engine validation errors
+  if (err.message && (
+    err.message.includes('Unknown condition key') ||
+    err.message.includes('Invalid basePrice') ||
+    err.message.includes('phone_working_condition')
+  )) {
+    statusCode = 400;
+    message = err.message;
+  }
+
   // Only log unexpected server errors in development or non-operational errors
   if (!err.isOperational) {
     console.error('[UNHANDLED SERVER ERROR]', err);

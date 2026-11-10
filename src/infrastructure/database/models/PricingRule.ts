@@ -144,7 +144,7 @@ const PricingRuleSchema = new Schema<IPricingRuleDocument>(
     effectiveFrom: { type: Date, default: Date.now },
     updatedByAdminId: { type: Schema.Types.ObjectId, ref: 'AdminUser' },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 PricingRuleSchema.index({ modelId: 1, variantId: 1, isActive: 1 });

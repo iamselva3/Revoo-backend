@@ -5,9 +5,9 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "postinstall": "tsc",
-    "prestart": "tsc",
+    "build": "tsc -p tsconfig.build.json",
+    "postinstall": "tsc -p tsconfig.build.json",
+    "prestart": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "seed": "tsx src/infrastructure/database/seeds/seed.ts",
     "test": "jest --runInBand --detectOpenHandles"
