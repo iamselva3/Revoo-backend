@@ -379,7 +379,21 @@ class CatalogueController {
             const models = await SmartphoneModel_js_1.SmartphoneModel.find(filter)
                 .populate('brandId', 'name slug logoUrl')
                 .sort({ releaseYear: -1, name: 1 });
-            res.status(200).json({ success: true, data: models });
+            const modelIds = models.map((m) => m._id);
+            const variants = await StorageVariant_js_1.StorageVariantModel.find({ modelId: { $in: modelIds } });
+            const variantMap = new Map();
+            for (const v of variants) {
+                const key = v.modelId.toString();
+                if (!variantMap.has(key))
+                    variantMap.set(key, []);
+                variantMap.get(key).push(v);
+            }
+            const modelsWithVariants = models.map((m) => {
+                const obj = m.toObject();
+                obj.variants = variantMap.get(m._id.toString()) || [];
+                return obj;
+            });
+            res.status(200).json({ success: true, data: modelsWithVariants });
         }
         catch (err) {
             next(err);
@@ -395,6 +409,29 @@ class CatalogueController {
                 version: 1,
                 isActive: true,
             });
+            // Save selected variants if provided
+            if (Array.isArray(req.body.variants) && req.body.variants.length > 0) {
+                for (const v of req.body.variants) {
+                    if (!v.capacity)
+                        continue;
+                    const variant = await StorageVariant_js_1.StorageVariantModel.create({
+                        modelId: model._id,
+                        capacity: v.capacity,
+                        ram: v.ram,
+                        storage: v.storage,
+                        priceModifier: Number(v.priceModifier) || 0,
+                        isPublished: true,
+                    });
+                    await PricingRule_js_1.PricingRuleModel.create({
+                        modelId: model._id,
+                        storageVariantId: variant._id,
+                        basePrice: model.basePrice,
+                        storagePriceAdjustment: Number(v.priceModifier) || 0,
+                        version: 1,
+                        isActive: true,
+                    });
+                }
+            }
             await (0, audit_middleware_js_1.logAuditEvent)({
                 req,
                 actorType: 'ADMIN',
@@ -417,6 +454,34 @@ class CatalogueController {
             const model = await SmartphoneModel_js_1.SmartphoneModel.findByIdAndUpdate(id, req.body, { new: true });
             if (!model)
                 return next(new types_js_1.AppError('Model not found', 404));
+            // Sync variants if provided
+            if (Array.isArray(req.body.variants)) {
+                await StorageVariant_js_1.StorageVariantModel.deleteMany({ modelId: model._id });
+                await PricingRule_js_1.PricingRuleModel.deleteMany({ modelId: model._id, storageVariantId: { $ne: null } });
+                for (const v of req.body.variants) {
+                    if (!v.capacity)
+                        continue;
+                    const variant = await StorageVariant_js_1.StorageVariantModel.create({
+                        modelId: model._id,
+                        capacity: v.capacity,
+                        ram: v.ram,
+                        storage: v.storage,
+                        priceModifier: Number(v.priceModifier) || 0,
+                        isPublished: true,
+                    });
+                    await PricingRule_js_1.PricingRuleModel.create({
+                        modelId: model._id,
+                        storageVariantId: variant._id,
+                        basePrice: model.basePrice,
+                        storagePriceAdjustment: Number(v.priceModifier) || 0,
+                        version: 1,
+                        isActive: true,
+                    });
+                }
+            }
+            if (req.body.basePrice) {
+                await PricingRule_js_1.PricingRuleModel.updateMany({ modelId: model._id }, { $set: { basePrice: Number(req.body.basePrice) } });
+            }
             await (0, audit_middleware_js_1.logAuditEvent)({
                 req,
                 actorType: 'ADMIN',
@@ -478,7 +543,20 @@ class CatalogueController {
     }
     static async adminCreateVariant(req, res, next) {
         try {
-            const variant = await StorageVariant_js_1.StorageVariantModel.create(req.body);
+            const { modelId, priceModifier, isPublished, ram, storage, rom } = req.body;
+            const resolvedStorage = storage || rom || '';
+            let capacity = req.body.capacity;
+            if (!capacity && (ram || resolvedStorage)) {
+                capacity = [ram, resolvedStorage].filter(Boolean).join(' / ');
+            }
+            const variant = await StorageVariant_js_1.StorageVariantModel.create({
+                modelId,
+                capacity,
+                ram: ram || undefined,
+                storage: resolvedStorage || undefined,
+                priceModifier: Number(priceModifier) || 0,
+                isPublished: isPublished !== false,
+            });
             // Create pricing rule variation for this storage variant
             const model = await SmartphoneModel_js_1.SmartphoneModel.findById(variant.modelId);
             if (model) {
@@ -491,7 +569,7 @@ class CatalogueController {
                     isActive: true,
                 });
             }
-            res.status(201).json({ success: true, message: 'Storage variant added.', data: variant });
+            res.status(201).json({ success: true, message: 'RAM/Storage variant added.', data: variant });
         }
         catch (err) {
             next(err);
@@ -822,37 +900,49 @@ class CatalogueController {
             const sellReviews = [
                 {
                     id: 'rev-s-1',
+                    _id: 'rev-s-1',
                     name: 'Arjun Nambiar',
-                    city: 'Bengaluru',
+                    customerName: 'Arjun Nambiar',
+                    city: 'Chennai',
                     rating: 5,
                     type: 'SELL',
                     device: 'iPhone 13 Pro (128GB)',
+                    deviceModel: 'iPhone 13 Pro (128GB)',
                     amount: 47500,
                     quote: 'Sold my iPhone in less than 3 hours from booking. The collection executive tested the screen and transferred ₹47,500 instantly to my Google Pay before stepping out!',
+                    comment: 'Sold my iPhone in less than 3 hours from booking. The collection executive tested the screen and transferred ₹47,500 instantly to my Google Pay before stepping out!',
                     date: 'Yesterday',
                     verified: true,
                 },
                 {
                     id: 'rev-s-2',
+                    _id: 'rev-s-2',
                     name: 'Pooja Deshmukh',
-                    city: 'Pune',
+                    customerName: 'Pooja Deshmukh',
+                    city: 'Coimbatore',
                     rating: 5,
                     type: 'SELL',
                     device: 'Samsung Galaxy S22 Ultra',
+                    deviceModel: 'Samsung Galaxy S22 Ultra',
                     amount: 42000,
-                    quote: 'Local shops offered only ₹34k citing minor edge wear. REVOO gave an indicative estimate of ₹44k and paid ₹42k after physical check. Truly transparent pricing!',
+                    quote: 'Local shops offered only ₹34k citing minor edge wear. Genie gave an indicative estimate of ₹44k and paid ₹42k after physical check. Truly transparent pricing!',
+                    comment: 'Local shops offered only ₹34k citing minor edge wear. Genie gave an indicative estimate of ₹44k and paid ₹42k after physical check. Truly transparent pricing!',
                     date: '3 days ago',
                     verified: true,
                 },
                 {
                     id: 'rev-s-3',
+                    _id: 'rev-s-3',
                     name: 'Karan Singhania',
-                    city: 'Delhi NCR',
+                    customerName: 'Karan Singhania',
+                    city: 'Madurai',
                     rating: 5,
                     type: 'SELL',
                     device: 'OnePlus 10 Pro',
+                    deviceModel: 'OnePlus 10 Pro',
                     amount: 26000,
                     quote: 'Free doorstep pickup was on exact time. Data erasure certificate gave me complete peace of mind before handing the device over. 10/10 service!',
+                    comment: 'Free doorstep pickup was on exact time. Data erasure certificate gave me complete peace of mind before handing the device over. 10/10 service!',
                     date: '1 week ago',
                     verified: true,
                 },
@@ -860,25 +950,33 @@ class CatalogueController {
             const buyReviews = [
                 {
                     id: 'rev-b-1',
+                    _id: 'rev-b-1',
                     name: 'Rohan Varma',
-                    city: 'Mumbai',
+                    customerName: 'Rohan Varma',
+                    city: 'Chennai',
                     rating: 5,
                     type: 'BUY',
                     device: 'Certified iPhone 14 Pro',
+                    deviceModel: 'Certified iPhone 14 Pro',
                     amount: 66999,
-                    quote: 'Got this pristine iPhone 14 Pro at almost half price. Battery health is at 98%, not a single mark on the display, and 1-year REVOO warranty card was inside the box!',
+                    quote: 'Got this pristine iPhone 14 Pro at almost half price. Battery health is at 98%, not a single mark on the display, and 1-year Genie warranty card was inside the box!',
+                    comment: 'Got this pristine iPhone 14 Pro at almost half price. Battery health is at 98%, not a single mark on the display, and 1-year Genie warranty card was inside the box!',
                     date: '2 days ago',
                     verified: true,
                 },
                 {
                     id: 'rev-b-2',
+                    _id: 'rev-b-2',
                     name: 'Meera Iyer',
-                    city: 'Chennai',
+                    customerName: 'Meera Iyer',
+                    city: 'Coimbatore',
                     rating: 5,
                     type: 'BUY',
                     device: 'Galaxy S23 Ultra',
+                    deviceModel: 'Galaxy S23 Ultra',
                     amount: 58999,
                     quote: 'Looked completely brand new. 32-point inspection diagnostic report was shared with the delivery. Best experience buying refurbished electronics in India.',
+                    comment: 'Looked completely brand new. 32-point inspection diagnostic report was shared with the delivery. Best experience buying refurbished electronics in India.',
                     date: '4 days ago',
                     verified: true,
                 },

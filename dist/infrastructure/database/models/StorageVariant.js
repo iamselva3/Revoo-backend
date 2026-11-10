@@ -38,6 +38,8 @@ const mongoose_1 = __importStar(require("mongoose"));
 const StorageVariantSchema = new mongoose_1.Schema({
     modelId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'SmartphoneModel', required: true, index: true },
     capacity: { type: String, required: true, trim: true },
+    ram: { type: String, trim: true },
+    storage: { type: String, trim: true },
     priceModifier: { type: Number, default: 0 },
     isPublished: { type: Boolean, default: true },
 }, { timestamps: true });

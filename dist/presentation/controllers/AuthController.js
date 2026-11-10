@@ -564,7 +564,11 @@ class AuthController {
     static async adminLogin(req, res, next) {
         try {
             const { email, password } = req.body;
-            const admin = await AdminUser_js_1.AdminUserModel.findOne({ email: email.toLowerCase() }).select('+passwordHash');
+            const lowerEmail = (email || '').toLowerCase().trim();
+            let admin = await AdminUser_js_1.AdminUserModel.findOne({ email: lowerEmail }).select('+passwordHash');
+            if (!admin && (lowerEmail.endsWith('@genie.in') || lowerEmail === 'admin@genie.in')) {
+                admin = await AdminUser_js_1.AdminUserModel.findOne({ email: lowerEmail.replace('@genie.in', '@revoo.com') }).select('+passwordHash');
+            }
             if (!admin || !admin.isActive) {
                 return next(new types_js_1.AppError('Invalid email or password credentials.', 401));
             }

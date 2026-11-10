@@ -432,7 +432,22 @@ export class CatalogueController {
         .populate('brandId', 'name slug logoUrl')
         .sort({ releaseYear: -1, name: 1 });
 
-      res.status(200).json({ success: true, data: models });
+      const modelIds = models.map((m) => m._id);
+      const variants = await StorageVariantModel.find({ modelId: { $in: modelIds } });
+      const variantMap = new Map<string, any[]>();
+      for (const v of variants) {
+        const key = v.modelId.toString();
+        if (!variantMap.has(key)) variantMap.set(key, []);
+        variantMap.get(key)!.push(v);
+      }
+
+      const modelsWithVariants = models.map((m) => {
+        const obj: any = m.toObject();
+        obj.variants = variantMap.get(m._id.toString()) || [];
+        return obj;
+      });
+
+      res.status(200).json({ success: true, data: modelsWithVariants });
     } catch (err) {
       next(err);
     }
@@ -449,6 +464,29 @@ export class CatalogueController {
         version: 1,
         isActive: true,
       });
+
+      // Save selected variants if provided
+      if (Array.isArray(req.body.variants) && req.body.variants.length > 0) {
+        for (const v of req.body.variants) {
+          if (!v.capacity) continue;
+          const variant = await StorageVariantModel.create({
+            modelId: model._id,
+            capacity: v.capacity,
+            ram: v.ram,
+            storage: v.storage,
+            priceModifier: Number(v.priceModifier) || 0,
+            isPublished: true,
+          });
+          await PricingRuleModel.create({
+            modelId: model._id,
+            storageVariantId: variant._id,
+            basePrice: model.basePrice,
+            storagePriceAdjustment: Number(v.priceModifier) || 0,
+            version: 1,
+            isActive: true,
+          });
+        }
+      }
 
       await logAuditEvent({
         req,
@@ -472,6 +510,38 @@ export class CatalogueController {
       const { id } = req.params;
       const model = await SmartphoneModel.findByIdAndUpdate(id, req.body, { new: true });
       if (!model) return next(new AppError('Model not found', 404));
+
+      // Sync variants if provided
+      if (Array.isArray(req.body.variants)) {
+        await StorageVariantModel.deleteMany({ modelId: model._id });
+        await PricingRuleModel.deleteMany({ modelId: model._id, storageVariantId: { $ne: null } });
+        for (const v of req.body.variants) {
+          if (!v.capacity) continue;
+          const variant = await StorageVariantModel.create({
+            modelId: model._id,
+            capacity: v.capacity,
+            ram: v.ram,
+            storage: v.storage,
+            priceModifier: Number(v.priceModifier) || 0,
+            isPublished: true,
+          });
+          await PricingRuleModel.create({
+            modelId: model._id,
+            storageVariantId: variant._id,
+            basePrice: model.basePrice,
+            storagePriceAdjustment: Number(v.priceModifier) || 0,
+            version: 1,
+            isActive: true,
+          });
+        }
+      }
+
+      if (req.body.basePrice) {
+        await PricingRuleModel.updateMany(
+          { modelId: model._id },
+          { $set: { basePrice: Number(req.body.basePrice) } }
+        );
+      }
 
       await logAuditEvent({
         req,
