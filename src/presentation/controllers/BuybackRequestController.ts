@@ -12,6 +12,7 @@ import { PaymentModel } from '../../infrastructure/database/models/Payment.js';
 import { DeviceReturnModel } from '../../infrastructure/database/models/DeviceReturn.js';
 import { ValuationEngine } from '../../domain/services/ValuationEngine.js';
 import { DevicePriceResolver } from '../../infrastructure/pricing/DevicePriceResolver.js';
+import { normalizeIndianMobile } from '../../shared/contact.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
 import { AppError, RequestStatus, FinalOfferStatus, PaymentStatus, ReturnStatus } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
@@ -20,6 +21,96 @@ import { StorageService } from '../../infrastructure/storage/StorageService.js';
 import { DeviceImageModel } from '../../infrastructure/database/models/DeviceImage.js';
 import { UserModel } from '../../infrastructure/database/models/User.js';
 import { config } from '../../config/index.js';
+
+const PAYOUT_METHODS = ['UPI', 'BANK_TRANSFER', 'INSTANT_CASH'] as const;
+
+const cleanText = (value: unknown, max = 200): string | undefined => {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim().slice(0, max);
+  return text || undefined;
+};
+
+/** Accepts both the website shape (addressLine1/addressLine2) and the app shape (street). */
+const normalizePickupAddress = (raw: any) => {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    street: cleanText(raw.street ?? raw.addressLine1) || '',
+    area: cleanText(raw.area ?? raw.addressLine2, 120),
+    city: cleanText(raw.city, 80) || '',
+    state: cleanText(raw.state, 80) || '',
+    pincode: String(raw.pincode ?? '').replace(/\D/g, '').slice(0, 6),
+    landmark: cleanText(raw.landmark, 120),
+    preferredSlot: cleanText(raw.preferredSlot, 80),
+  };
+};
+
+/** Payout preference chosen on the booking form (UPI ID or bank account, or cash). */
+const normalizePayout = (raw: any) => {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const method = String(raw.paymentMethod ?? raw.method ?? '').toUpperCase();
+  if (!(PAYOUT_METHODS as readonly string[]).includes(method)) return undefined;
+  const bank = raw.bankAccount || raw;
+  return {
+    method: method as (typeof PAYOUT_METHODS)[number],
+    upiId: method === 'UPI' ? cleanText(raw.upiId, 100) : undefined,
+    accountNumber: method === 'BANK_TRANSFER' ? cleanText(String(bank.accountNumber ?? '').replace(/\s/g, ''), 20) : undefined,
+    ifscCode: method === 'BANK_TRANSFER' ? cleanText(String(bank.ifscCode ?? '').toUpperCase(), 11) : undefined,
+    bankName: method === 'BANK_TRANSFER' ? cleanText(bank.bankName, 80) : undefined,
+  };
+};
+
+const maskAccountNumber = (value?: string) => (value ? `•••• ${value.slice(-4)}` : undefined);
+
+/** Shape returned to customers: normalized device/contact fields, masked bank details, no internal notes. */
+const toCustomerRequestView = (obj: any) => {
+  const modelRef = obj.deviceDetails?.modelId;
+  const populatedModel = modelRef && typeof modelRef === 'object' && 'slug' in modelRef ? modelRef : null;
+
+  const view: any = {
+    ...obj,
+    deviceDetails: obj.deviceDetails
+      ? { ...obj.deviceDetails, modelId: populatedModel ? populatedModel._id : modelRef }
+      : obj.deviceDetails,
+    device: {
+      brand: obj.deviceDetails?.brandName || obj.device?.brand || '',
+      modelName: obj.deviceDetails?.modelName || obj.device?.modelName || 'Smartphone',
+      variant: obj.deviceDetails?.storageCapacity || obj.device?.variant || '',
+      imageUrl: populatedModel?.imageUrl,
+      slug: populatedModel?.slug,
+    },
+    customer: {
+      fullName: obj.customerDetails?.fullName || obj.pickupAddress?.fullName || '',
+      phone: obj.customerDetails?.phone || obj.pickupAddress?.phone || '',
+      email: obj.customerDetails?.email,
+    },
+    scheduledPickupDate:
+      obj.scheduledPickupDate ||
+      obj.pickupAddress?.scheduledDate ||
+      obj.pickupAddress?.preferredSlot ||
+      obj.assignedCollector?.scheduledDate ||
+      (obj.createdAt ? new Date(obj.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tomorrow'),
+    preferredTimeWindow:
+      obj.preferredTimeWindow ||
+      obj.pickupAddress?.preferredSlot ||
+      obj.assignedCollector?.timeSlot ||
+      '10:00 AM - 1:00 PM',
+    indicativeValuation: obj.indicativeEstimate?.estimatedAmount || obj.indicativeValuation || 0,
+    payoutDetails: obj.payoutDetails?.method
+      ? { ...obj.payoutDetails, accountNumber: maskAccountNumber(obj.payoutDetails.accountNumber) }
+      : undefined,
+  };
+
+  if (obj.activeOfferId && typeof obj.activeOfferId === 'object') {
+    const { internalNotes: _internal, ...offer } = obj.activeOfferId;
+    view.activeOfferId = offer;
+    view.finalOfferAmount = offer.finalOfferedAmount;
+  }
+  if (obj.inspectionId && typeof obj.inspectionId === 'object') {
+    const { internalInspectionNotes: _internal, ...inspection } = obj.inspectionId;
+    view.inspectionId = inspection;
+  }
+  return view;
+};
 
 export class BuybackRequestController {
   // --- Customer Operations ---
@@ -32,7 +123,12 @@ export class BuybackRequestController {
       const variantIdInput = rawBody.variantId || rawBody.device?.variantId;
       const variantCapacityInput = rawBody.variantCapacity || rawBody.device?.variant;
       const declaredCondition = rawBody.declaredCondition || rawBody.conditions || {};
-      const pickupAddress = rawBody.pickupAddress;
+      // The website sends addressLine1/addressLine2, the mobile app sends street — accept both
+      const pickupAddress = normalizePickupAddress(rawBody.pickupAddress);
+      const payoutDetails = normalizePayout(rawBody.paymentDetails || rawBody.payoutDetails);
+      if (!pickupAddress?.street || !pickupAddress.city || !pickupAddress.state || !/^\d{6}$/.test(pickupAddress.pincode)) {
+        return next(new AppError('Please enter your full pickup address with a valid 6-digit pincode.', 400));
+      }
       const photoUrls = rawBody.photoUrls;
 
       // Resolve the exact catalogue device and its admin-configured price. Never fall back to an
@@ -121,6 +217,9 @@ export class BuybackRequestController {
         req.user?.email ||
         'Valued Customer';
       const customerPhone =
+        normalizeIndianMobile(rawBody.pickupAddress?.phone) ||
+        normalizeIndianMobile(rawBody.customer?.phone) ||
+        normalizeIndianMobile(rawBody.phone) ||
         rawBody.pickupAddress?.phone ||
         rawBody.customer?.phone ||
         rawBody.phone ||
@@ -171,6 +270,7 @@ export class BuybackRequestController {
         },
         photoUrls: photoUrls || [],
         pickupAddress,
+        payoutDetails,
         scheduledPickupDate: rawBody.scheduledPickupDate || rawBody.pickupAddress?.scheduledDate || rawBody.pickupAddress?.preferredSlot,
         preferredTimeWindow: rawBody.preferredTimeWindow || rawBody.pickupAddress?.preferredSlot,
         status: RequestStatus.SUBMITTED,
@@ -206,7 +306,9 @@ export class BuybackRequestController {
 
   public static async getMyRequests(req: AuthenticatedCustomerRequest, res: Response, next: NextFunction) {
     try {
-      const requests = await BuybackRequestModel.find({ userId: req.user?.id }).sort({ createdAt: -1 });
+      const requests = await BuybackRequestModel.find({ userId: req.user?.id })
+        .sort({ createdAt: -1 })
+        .populate('deviceDetails.modelId', 'imageUrl slug');
 
       // If user profile is missing a phone number, sync from historical requests
       if (req.user?.id && requests.length > 0) {
@@ -222,36 +324,7 @@ export class BuybackRequestController {
         }
       }
 
-      const mapped = requests.map((r: any) => {
-        const obj = r.toObject ? r.toObject() : r;
-        return {
-          ...obj,
-          device: {
-            brand: obj.deviceDetails?.brandName || obj.device?.brand || '',
-            modelName: obj.deviceDetails?.modelName || obj.device?.modelName || 'Smartphone',
-            variant: obj.deviceDetails?.storageCapacity || obj.device?.variant || '',
-          },
-          customer: {
-            fullName: obj.customerDetails?.fullName || obj.pickupAddress?.fullName || '',
-            phone: obj.customerDetails?.phone || obj.pickupAddress?.phone || '',
-          },
-          scheduledPickupDate:
-            obj.scheduledPickupDate ||
-            obj.pickupAddress?.scheduledDate ||
-            obj.pickupAddress?.preferredSlot ||
-            obj.assignedCollector?.scheduledDate ||
-            (obj.createdAt ? new Date(obj.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tomorrow'),
-          preferredTimeWindow:
-            obj.preferredTimeWindow ||
-            obj.pickupAddress?.preferredSlot ||
-            obj.assignedCollector?.timeSlot ||
-            '10:00 AM - 1:00 PM',
-          indicativeValuation:
-            obj.indicativeEstimate?.estimatedAmount ||
-            obj.indicativeValuation ||
-            0,
-        };
-      });
+      const mapped = requests.map((r: any) => toCustomerRequestView(r.toObject ? r.toObject() : r));
 
       res.status(200).json({ success: true, data: mapped });
     } catch (err) {
@@ -262,46 +335,20 @@ export class BuybackRequestController {
   public static async getMyRequestDetails(req: AuthenticatedCustomerRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const request = await BuybackRequestModel.findOne({ _id: id, userId: req.user?.id })
+      // Accept either the Mongo id or the human request number (e.g. GENIE-2026-1011)
+      const lookup = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { requestNumber: String(id).toUpperCase() };
+      const request = await BuybackRequestModel.findOne({ ...lookup, userId: req.user?.id })
         .populate('activeOfferId')
         .populate('inspectionId')
         .populate('paymentId')
-        .populate('returnId');
+        .populate('returnId')
+        .populate('deviceDetails.modelId', 'imageUrl slug');
 
       if (!request) {
         return next(new AppError('Buyback request not found.', 404));
       }
 
-      const obj: any = request.toObject();
-      const normalized = {
-        ...obj,
-        device: {
-          brand: obj.deviceDetails?.brandName || obj.device?.brand || '',
-          modelName: obj.deviceDetails?.modelName || obj.device?.modelName || 'Smartphone',
-          variant: obj.deviceDetails?.storageCapacity || obj.device?.variant || '',
-        },
-        customer: {
-          fullName: obj.customerDetails?.fullName || obj.pickupAddress?.fullName || '',
-          phone: obj.customerDetails?.phone || obj.pickupAddress?.phone || '',
-        },
-        scheduledPickupDate:
-          obj.scheduledPickupDate ||
-          obj.pickupAddress?.scheduledDate ||
-          obj.pickupAddress?.preferredSlot ||
-          obj.assignedCollector?.scheduledDate ||
-          (obj.createdAt ? new Date(obj.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tomorrow'),
-        preferredTimeWindow:
-          obj.preferredTimeWindow ||
-          obj.pickupAddress?.preferredSlot ||
-          obj.assignedCollector?.timeSlot ||
-          '10:00 AM - 1:00 PM',
-        indicativeValuation:
-          obj.indicativeEstimate?.estimatedAmount ||
-          obj.indicativeValuation ||
-          0,
-      };
-
-      res.status(200).json({ success: true, data: normalized });
+      res.status(200).json({ success: true, data: toCustomerRequestView(request.toObject()) });
     } catch (err) {
       next(err);
     }

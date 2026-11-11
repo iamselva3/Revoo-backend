@@ -10,6 +10,7 @@ import { AppError, UserStatus } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedCustomerRequest, AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
 import { config } from '../../config/index.js';
+import { normalizeIndianMobile } from '../../shared/contact.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -561,20 +562,53 @@ export class AuthController {
 
   public static async updateCustomerProfile(req: AuthenticatedCustomerRequest, res: Response, next: NextFunction) {
     try {
-      const { fullName, address } = req.body;
-      const user = await UserModel.findByIdAndUpdate(
-        req.user?.id,
-        {
-          ...(fullName && { fullName }),
-          ...(address && { address }),
-        },
-        { new: true }
-      );
+      // Customers may edit their name, mobile number and saved address. Email is the login
+      // identity (Google / email OTP) and is intentionally not editable here.
+      const { fullName, phone, address } = req.body;
+      const updates: Record<string, any> = {};
+
+      if (fullName !== undefined) {
+        const name = String(fullName).replace(/\s+/g, ' ').trim();
+        if (name.length < 2 || name.length > 60) {
+          return next(new AppError('Please enter your full name (2 to 60 characters).', 400));
+        }
+        updates.fullName = name;
+      }
+
+      if (phone !== undefined) {
+        const mobile = normalizeIndianMobile(phone);
+        if (!mobile) {
+          return next(new AppError('Please enter a valid 10-digit Indian mobile number.', 400));
+        }
+        // One mobile number per account, so phone-based sign-in can never land in someone else's account
+        const taken = await UserModel.exists({
+          _id: { $ne: req.user?.id },
+          phone: { $in: [mobile, `+91${mobile}`, `91${mobile}`] },
+        });
+        if (taken) {
+          return next(new AppError('This mobile number is already linked to another Genie account.', 409));
+        }
+        updates.phone = mobile;
+      }
+
+      if (address && typeof address === 'object') updates.address = address;
+
+      const user = await UserModel.findByIdAndUpdate(req.user?.id, { $set: updates }, { new: true, runValidators: true });
+      if (!user) return next(new AppError('User not found', 404));
 
       res.status(200).json({
         success: true,
         message: 'Profile updated successfully.',
-        data: user,
+        data: {
+          id: user._id,
+          fullName: user.fullName,
+          phone: user.phone,
+          email: user.email,
+          address: user.address,
+          status: user.status,
+          referralCode: user.referralCode,
+          createdAt: user.createdAt,
+        },
       });
     } catch (err) {
       next(err);

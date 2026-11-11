@@ -307,6 +307,142 @@ describe('REVOO Backend Integration Tests', () => {
     });
   });
 
+  describe('Customer bookings & profile', () => {
+    let tokenA: string;
+    let tokenB: string;
+    let requestNumber: string;
+
+    const signup = async (email: string, fullName: string) => {
+      const res = await request(app)
+        .post('/api/v1/auth/customer/signup')
+        .send({ fullName, identifier: email, password: 'SecurePassword123!' });
+      expect(res.status).toBe(201);
+      return res.body.data.tokens.accessToken as string;
+    };
+
+    // Exactly what the website's pickup form sends
+    const webBooking = (overrides: Record<string, any> = {}) => ({
+      device: { brand: 'Apple', modelName: 'iPhone 15 Pro', modelId: sampleModelId, variant: '256GB', variantId: sampleVariantId },
+      modelId: sampleModelId,
+      variantId: sampleVariantId,
+      conditions: {
+        basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: false },
+        screenDisplayCondition: 'NO_SPOT',
+        touchGlassCondition: 'MINOR_SCRATCHES',
+        backPanelCondition: 'NO_DEFECTS',
+        sidePanelCondition: 'NO_DEFECTS',
+        hardwareFaults: { batteryHealthBelow83: true },
+        hasValidBill: true,
+        summary: [{ title: 'Screen', items: ['No spot', 'Minor scratches'] }],
+      },
+      indicativeValuation: 60000,
+      pickupAddress: {
+        fullName: 'Selva Ganesh',
+        phone: '+91 98450 12345',
+        addressLine1: 'No. 42, North Mada Street',
+        addressLine2: 'Anna Nagar',
+        city: 'Chennai',
+        state: 'Tamil Nadu',
+        pincode: '600040',
+      },
+      scheduledPickupDate: '2026-11-12',
+      preferredTimeWindow: 'Morning (10:00 AM - 01:00 PM)',
+      paymentDetails: { paymentMethod: 'UPI', upiId: 'selva@okhdfcbank' },
+      ...overrides,
+    });
+
+    beforeAll(async () => {
+      tokenA = await signup('booking.a@revoo.test', 'Selva Ganesh');
+      tokenB = await signup('booking.b@revoo.test', 'Other Person');
+    });
+
+    test('POST /api/v1/requests accepts the website booking payload', async () => {
+      const res = await request(app).post('/api/v1/requests').set('Authorization', `Bearer ${tokenA}`).send(webBooking());
+
+      expect(res.status).toBe(201);
+      const saved = res.body.data;
+      requestNumber = saved.requestNumber;
+      expect(saved.pickupAddress.street).toBe('No. 42, North Mada Street');
+      expect(saved.pickupAddress.area).toBe('Anna Nagar');
+      expect(saved.pickupAddress.pincode).toBe('600040');
+      expect(saved.customerDetails.phone).toBe('9845012345');
+      expect(saved.payoutDetails).toMatchObject({ method: 'UPI', upiId: 'selva@okhdfcbank' });
+      expect(saved.deviceDetails.storageCapacity).toBe('256GB');
+      expect(saved.declaredCondition.touchGlassCondition).toBe('MINOR_SCRATCHES');
+      expect(saved.declaredCondition.hardwareFaults.batteryHealthBelow83).toBe(true);
+      expect(saved.declaredCondition.summary[0].items).toContain('Minor scratches');
+    });
+
+    test('POST /api/v1/requests rejects an incomplete address', async () => {
+      const res = await request(app)
+        .post('/api/v1/requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send(webBooking({ pickupAddress: { addressLine1: 'Somewhere', city: 'Chennai', state: 'Tamil Nadu', pincode: '12' } }));
+      expect(res.status).toBe(400);
+    });
+
+    test('GET /api/v1/requests/my returns pickup details with a masked bank account', async () => {
+      await request(app)
+        .post('/api/v1/requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send(
+          webBooking({
+            paymentDetails: { paymentMethod: 'BANK_TRANSFER', bankAccount: { accountNumber: '50100234566789', ifscCode: 'hdfc0001234' } },
+          })
+        );
+
+      const res = await request(app).get('/api/v1/requests/my').set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(2);
+      const [bank, upi] = res.body.data; // newest first
+      expect(bank.payoutDetails.accountNumber).toBe('•••• 6789');
+      expect(bank.payoutDetails.ifscCode).toBe('HDFC0001234');
+      expect(upi.customer.phone).toBe('9845012345');
+      expect(upi.pickupAddress.area).toBe('Anna Nagar');
+      expect(upi.device.modelName).toBe('iPhone 15 Pro');
+      expect(upi.device.slug).toBe('iphone-15-pro');
+    });
+
+    test('GET /api/v1/requests/my/:requestNumber finds a request by its number', async () => {
+      const res = await request(app).get(`/api/v1/requests/my/${requestNumber}`).set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.requestNumber).toBe(requestNumber);
+    });
+
+    test('Another customer cannot read the request', async () => {
+      const res = await request(app).get(`/api/v1/requests/my/${requestNumber}`).set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(404);
+    });
+
+    test('PUT /api/v1/auth/customer/profile updates name and phone but never the email', async () => {
+      const res = await request(app)
+        .put('/api/v1/auth/customer/profile')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ fullName: '  Selva   G  ', phone: '+91 98450 12345', email: 'attacker@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.fullName).toBe('Selva G');
+      expect(res.body.data.phone).toBe('9845012345');
+      expect(res.body.data.email).toBe('booking.a@revoo.test');
+    });
+
+    test('PUT /api/v1/auth/customer/profile rejects an invalid mobile number', async () => {
+      const res = await request(app)
+        .put('/api/v1/auth/customer/profile')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ phone: '12345' });
+      expect(res.status).toBe(400);
+    });
+
+    test('PUT /api/v1/auth/customer/profile refuses a number linked to another account', async () => {
+      const res = await request(app)
+        .put('/api/v1/auth/customer/profile')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ phone: '9845012345' });
+      expect(res.status).toBe(409);
+    });
+  });
+
   describe('Admin Operations & RBAC', () => {
     test('Unauthenticated request to admin route returns 401', async () => {
       const res = await request(app).get('/api/v1/dashboard/stats');

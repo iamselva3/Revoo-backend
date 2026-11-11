@@ -50,6 +50,7 @@ export interface IBuybackRequestDocument extends Document {
   photoUrls: string[];
   pickupAddress: {
     street: string;
+    area?: string;
     city: string;
     state: string;
     pincode: string;
@@ -58,6 +59,14 @@ export interface IBuybackRequestDocument extends Document {
   };
   scheduledPickupDate?: string;
   preferredTimeWindow?: string;
+  /** How the customer wants to be paid at handover (captured on the booking form). */
+  payoutDetails?: {
+    method: 'UPI' | 'BANK_TRANSFER' | 'INSTANT_CASH';
+    upiId?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    bankName?: string;
+  };
   status: RequestStatus;
   timeline: Array<{
     status: RequestStatus;
@@ -118,8 +127,12 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
         isDisplayOriginal: { type: Boolean, default: true },
         hasValidWarranty: { type: Boolean, default: false },
       },
+      screenDisplayCondition: { type: String },
+      touchGlassCondition: { type: String },
       backPanelCondition: { type: String },
       sidePanelCondition: { type: String },
+      hasValidBill: { type: Boolean },
+      deviceAge: { type: String },
       hardwareFaults: {
         volumeButtonNotWorking: { type: Boolean, default: false },
         wifiOrBluetoothNotWorking: { type: Boolean, default: false },
@@ -128,8 +141,22 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
         powerButtonNotWorking: { type: Boolean, default: false },
         earSpeakerNotWorking: { type: Boolean, default: false },
         vibratorNotWorking: { type: Boolean, default: false },
+        batteryHealthBelow83: { type: Boolean, default: false },
+        frontCameraNotWorking: { type: Boolean, default: false },
+        backCameraNotWorking: { type: Boolean, default: false },
+        cameraGlassBroken: { type: Boolean, default: false },
+        networkProblem: { type: Boolean, default: false },
+        microphoneNotWorking: { type: Boolean, default: false },
+        biometricsNotWorking: { type: Boolean, default: false },
       },
-
+      // Human-readable answers shown back to the customer and the inspection team
+      summary: [
+        {
+          _id: false,
+          title: { type: String },
+          items: [{ type: String }],
+        },
+      ],
       hasOriginalBox: { type: Boolean, default: false },
       hasOriginalCharger: { type: Boolean, default: false },
       additionalNotes: { type: String },
@@ -152,6 +179,7 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
     photoUrls: [{ type: String }],
     pickupAddress: {
       street: { type: String, required: true },
+      area: { type: String },
       city: { type: String, required: true },
       state: { type: String, required: true },
       pincode: { type: String, required: true },
@@ -160,6 +188,13 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
     },
     scheduledPickupDate: { type: String },
     preferredTimeWindow: { type: String },
+    payoutDetails: {
+      method: { type: String, enum: ['UPI', 'BANK_TRANSFER', 'INSTANT_CASH'] },
+      upiId: { type: String, trim: true },
+      accountNumber: { type: String, trim: true },
+      ifscCode: { type: String, trim: true, uppercase: true },
+      bankName: { type: String, trim: true },
+    },
     status: {
       type: String,
       enum: Object.values(RequestStatus),
