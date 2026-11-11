@@ -20,7 +20,11 @@ export interface AdminTokenPayload {
 }
 
 export class TokenService {
-  public static generateCustomerTokenPair(payload: CustomerTokenPayload): {
+  /**
+   * @param sid Session id embedded in the refresh token, identifying the device/browser session
+   *            it belongs to (see CustomerSessionService).
+   */
+  public static generateCustomerTokenPair(payload: CustomerTokenPayload, sid?: string): {
     accessToken: string;
     refreshToken: string;
     refreshTokenHash: string;
@@ -31,7 +35,7 @@ export class TokenService {
 
     const refreshTokenRaw = crypto.randomBytes(40).toString('hex');
     const refreshToken = jwt.sign(
-      { ...payload, tokenSalt: refreshTokenRaw },
+      { ...payload, ...(sid ? { sid } : {}), tokenSalt: refreshTokenRaw },
       config.jwt.refreshSecret,
       { expiresIn: config.jwt.refreshExpiry as any }
     );

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { TokenService } from '../../infrastructure/security/tokenService.js';
 import { GoogleAuthService } from '../../infrastructure/security/GoogleAuthService.js';
+import { CustomerSessionService } from '../../infrastructure/security/CustomerSessionService.js';
 import { UserModel } from '../../infrastructure/database/models/User.js';
 import { AdminUserModel } from '../../infrastructure/database/models/AdminUser.js';
 import { OtpRecordModel } from '../../infrastructure/database/models/OtpRecord.js';
@@ -140,15 +141,8 @@ export class AuthController {
       }
 
       // Generate tokens
-      const tokenPair = TokenService.generateCustomerTokenPair({
-        userId: user._id.toString(),
-        phone: user.phone,
-        email: user.email,
-        type: 'CUSTOMER',
-      });
-
-      user.refreshTokenHash = tokenPair.refreshTokenHash;
       await user.save();
+      const tokenPair = await CustomerSessionService.issue(user, req.get('user-agent'));
 
       res.status(200).json({
         success: true,
@@ -205,15 +199,8 @@ export class AuthController {
         return next(new AppError('Your account has been deactivated. Please contact support.', 403));
       }
 
-      const tokenPair = TokenService.generateCustomerTokenPair({
-        userId: user._id.toString(),
-        phone: user.phone,
-        email: user.email,
-        type: 'CUSTOMER',
-      });
-
-      user.refreshTokenHash = tokenPair.refreshTokenHash;
       await user.save();
+      const tokenPair = await CustomerSessionService.issue(user, req.get('user-agent'));
 
       res.status(200).json({
         success: true,
@@ -301,15 +288,8 @@ export class AuthController {
         });
       }
 
-      const tokenPair = TokenService.generateCustomerTokenPair({
-        userId: user._id.toString(),
-        phone: user.phone,
-        email: user.email,
-        type: 'CUSTOMER',
-      });
-
-      user.refreshTokenHash = tokenPair.refreshTokenHash;
       await user.save();
+      const tokenPair = await CustomerSessionService.issue(user, req.get('user-agent'));
 
       res.status(201).json({
         success: true,
@@ -406,15 +386,8 @@ export class AuthController {
         await user.save();
       }
 
-      const tokenPair = TokenService.generateCustomerTokenPair({
-        userId: user._id.toString(),
-        phone: user.phone,
-        email: user.email,
-        type: 'CUSTOMER',
-      });
-
-      user.refreshTokenHash = tokenPair.refreshTokenHash;
       await user.save();
+      const tokenPair = await CustomerSessionService.issue(user, req.get('user-agent'));
 
       res.status(200).json({
         success: true,
@@ -443,31 +416,20 @@ export class AuthController {
 
   public static async refreshCustomerToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const { refreshToken } = req.body;
-      const decoded = TokenService.verifyRefreshToken<any>(refreshToken);
-
-      if (decoded.type !== 'CUSTOMER') {
-        return next(new AppError('Invalid refresh token type.', 403));
+      const { refreshToken } = req.body || {};
+      if (!refreshToken || typeof refreshToken !== 'string') {
+        return next(new AppError('Refresh token is required.', 400));
       }
 
-      const hash = TokenService.hashToken(refreshToken);
-      const user = await UserModel.findOne({ _id: decoded.userId, refreshTokenHash: hash });
-
-      if (!user) {
-        // Reuse detection / revocation
-        await UserModel.findByIdAndUpdate(decoded.userId, { $unset: { refreshTokenHash: 1 } });
-        return next(new AppError('Invalid or reused refresh token. Please log in again.', 401));
+      let tokenPair: { accessToken: string; refreshToken: string } | null;
+      try {
+        tokenPair = await CustomerSessionService.rotate(refreshToken, req.get('user-agent'));
+      } catch {
+        return next(new AppError('Refresh token invalid or expired. Please log in again.', 401));
       }
-
-      const tokenPair = TokenService.generateCustomerTokenPair({
-        userId: user._id.toString(),
-        phone: user.phone,
-        email: user.email,
-        type: 'CUSTOMER',
-      });
-
-      user.refreshTokenHash = tokenPair.refreshTokenHash;
-      await user.save();
+      if (!tokenPair) {
+        return next(new AppError('Your session has ended. Please log in again.', 401));
+      }
 
       res.status(200).json({
         success: true,
@@ -478,14 +440,29 @@ export class AuthController {
         },
       });
     } catch (err) {
-      next(new AppError('Refresh token invalid or expired. Please log in again.', 401));
+      next(err);
     }
   }
 
-  public static async customerLogout(req: AuthenticatedCustomerRequest, res: Response, next: NextFunction) {
+  /**
+   * Ends this device's session. Works with an expired access token: the refresh token in the
+   * body identifies the session. Older clients that only send the access token still clear the
+   * legacy single-session token.
+   */
+  public static async customerLogout(req: Request, res: Response, next: NextFunction) {
     try {
-      if (req.user?.id) {
-        await UserModel.findByIdAndUpdate(req.user.id, { $unset: { refreshTokenHash: 1 } });
+      await CustomerSessionService.revoke(req.body?.refreshToken);
+
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const decoded = TokenService.verifyAccessToken<any>(authHeader.slice(7));
+          if (decoded?.type === 'CUSTOMER' && decoded.userId) {
+            await UserModel.findByIdAndUpdate(decoded.userId, { $unset: { refreshTokenHash: 1 } });
+          }
+        } catch {
+          // expired/invalid access token: the refresh-token revoke above is enough
+        }
       }
       res.status(200).json({ success: true, message: 'Logged out successfully.' });
     } catch (err) {

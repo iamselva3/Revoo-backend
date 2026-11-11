@@ -443,6 +443,72 @@ describe('REVOO Backend Integration Tests', () => {
     });
   });
 
+  describe('Customer sessions (stay signed in)', () => {
+    const login = async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/customer/login-password')
+        .send({ identifier: 'sessions@revoo.test', password: 'SecurePassword123!' });
+      expect(res.status).toBe(200);
+      return res.body.data.tokens as { accessToken: string; refreshToken: string };
+    };
+    const refresh = (refreshToken: string) =>
+      request(app).post('/api/v1/auth/customer/refresh-token').send({ refreshToken });
+
+    beforeAll(async () => {
+      await request(app)
+        .post('/api/v1/auth/customer/signup')
+        .send({ fullName: 'Session Tester', identifier: 'sessions@revoo.test', password: 'SecurePassword123!' });
+    });
+
+    test('Refreshing returns a working new token pair', async () => {
+      const first = await login();
+      const res = await refresh(first.refreshToken);
+      expect(res.status).toBe(200);
+      const profile = await request(app)
+        .get('/api/v1/auth/customer/profile')
+        .set('Authorization', `Bearer ${res.body.data.accessToken}`);
+      expect(profile.status).toBe(200);
+    });
+
+    test('Signing in on a second device does not log out the first', async () => {
+      const deviceA = await login();
+      const deviceB = await login();
+      expect((await refresh(deviceA.refreshToken)).status).toBe(200);
+      expect((await refresh(deviceB.refreshToken)).status).toBe(200);
+    });
+
+    test('Two refreshes at the same moment (two tabs) both succeed', async () => {
+      const session = await login();
+      const [one, two] = await Promise.all([refresh(session.refreshToken), refresh(session.refreshToken)]);
+      expect(one.status).toBe(200);
+      expect(two.status).toBe(200);
+    });
+
+    test('Reusing an old refresh token ends that session only', async () => {
+      const victim = await login();
+      const other = await login();
+      const second = (await refresh(victim.refreshToken)).body.data.refreshToken;
+      const third = (await refresh(second)).body.data.refreshToken;
+
+      expect((await refresh(victim.refreshToken)).status).toBe(401); // stale token replayed
+      expect((await refresh(third)).status).toBe(401); // that session is now closed
+      expect((await refresh(other.refreshToken)).status).toBe(200); // other device unaffected
+    });
+
+    test('Logout ends this device only and works without a valid access token', async () => {
+      const deviceA = await login();
+      const deviceB = await login();
+      const res = await request(app).post('/api/v1/auth/customer/logout').send({ refreshToken: deviceA.refreshToken });
+      expect(res.status).toBe(200);
+      expect((await refresh(deviceA.refreshToken)).status).toBe(401);
+      expect((await refresh(deviceB.refreshToken)).status).toBe(200);
+    });
+
+    test('Garbage refresh tokens are rejected with 401', async () => {
+      expect((await refresh('not-a-jwt-token')).status).toBe(401);
+    });
+  });
+
   describe('Admin Operations & RBAC', () => {
     test('Unauthenticated request to admin route returns 401', async () => {
       const res = await request(app).get('/api/v1/dashboard/stats');

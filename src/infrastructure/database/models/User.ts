@@ -22,6 +22,16 @@ export interface IUserDocument extends Document {
   authProvider?: string;
   googleId?: string;
   refreshTokenHash?: string;
+  /** One entry per signed-in device/browser, so signing in elsewhere never logs this one out. */
+  sessions?: Array<{
+    sid: string;
+    hash: string;
+    prevHash?: string;
+    rotatedAt?: Date;
+    createdAt: Date;
+    lastUsedAt: Date;
+    userAgent?: string;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +58,22 @@ const UserSchema = new Schema<IUserDocument>(
     authProvider: { type: String, default: 'local' },
     googleId: { type: String, sparse: true, index: true },
     refreshTokenHash: { type: String, select: false },
+    sessions: {
+      type: [
+        {
+          _id: false,
+          sid: { type: String, required: true },
+          hash: { type: String, required: true },
+          prevHash: { type: String },
+          rotatedAt: { type: Date },
+          createdAt: { type: Date, default: Date.now },
+          lastUsedAt: { type: Date, default: Date.now },
+          userAgent: { type: String },
+        },
+      ],
+      select: false,
+      default: undefined,
+    },
   },
   { timestamps: true }
 );
