@@ -12,6 +12,7 @@ import { ValuationEngine, calculatePrice } from '../../domain/services/Valuation
 import { AppError } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
+import { DevicePriceResolver } from '../../infrastructure/pricing/DevicePriceResolver.js';
 
 export class CatalogueController {
   // --- Public Customer Endpoints ---
@@ -64,8 +65,20 @@ export class CatalogueController {
       }
 
       const models = await SmartphoneModel.find(filterQuery).sort({ releaseYear: -1, name: 1 });
+      const ranges = await DevicePriceResolver.priceRanges(models);
 
-      res.status(200).json({ success: true, data: models });
+      // Each model carries its "Get up to" price (best variant, top condition)
+      const data = models.map((m) => {
+        const range = ranges.get(String(m._id));
+        return {
+          ...m.toObject(),
+          maxPrice: range?.maxPrice ?? DevicePriceResolver.variantPrice(m),
+          minPrice: range?.minPrice ?? DevicePriceResolver.variantPrice(m),
+          variantCount: range?.variantCount ?? 0,
+        };
+      });
+
+      res.status(200).json({ success: true, data });
     } catch (err) {
       next(err);
     }
@@ -90,16 +103,28 @@ export class CatalogueController {
         return next(new AppError('Smartphone model not found or currently unavailable.', 404));
       }
 
-      const variants = await StorageVariantModel.find({
+      const variantDocs = await StorageVariantModel.find({
         modelId: model._id,
         isPublished: true,
       }).sort({ priceModifier: 1 });
 
+      // Attach the top-condition price of every variant so the storefront can show
+      // "Get up to ₹X" per variant without re-deriving the pricing formula client-side.
+      const variants = variantDocs.map((v) => ({
+        ...v.toObject(),
+        price: DevicePriceResolver.variantPrice(model, v),
+      }));
+      const prices = variants.length > 0 ? variants.map((v) => v.price) : [DevicePriceResolver.variantPrice(model)];
+      const maxPrice = Math.max(...prices);
+      const minPrice = Math.min(...prices);
+
       res.status(200).json({
         success: true,
         data: {
-          model,
+          model: { ...model.toObject(), maxPrice, minPrice },
           variants,
+          maxPrice,
+          minPrice,
         },
       });
     } catch (err) {
@@ -142,58 +167,24 @@ export class CatalogueController {
         hasValidBill = false,
       } = req.body;
 
-      let pricingRule: any = null;
-      let modelDoc: any = null;
-      let effectiveBasePrice = typeof customBasePrice === 'number' && customBasePrice > 0 ? customBasePrice : 0;
-      let storageModifier = 0;
+      // 1. Resolve the catalogue price. When the model is in the catalogue its admin-configured
+      //    price is authoritative and any client-supplied basePrice is ignored.
+      const resolved = await DevicePriceResolver.resolve({
+        modelId: typeof modelId === 'string' ? modelId : undefined,
+        modelName: typeof modelName === 'string' ? modelName : undefined,
+        variantId: typeof variantId === 'string' ? variantId : undefined,
+        variantCapacity: typeof req.body.variantCapacity === 'string' ? req.body.variantCapacity : undefined,
+      });
 
-      // 1. Resolve modelDoc & real model ObjectId if possible
-      if (modelId) {
-        if (mongoose.Types.ObjectId.isValid(modelId)) {
-          modelDoc = await SmartphoneModel.findById(modelId);
-        } else {
-          modelDoc = await SmartphoneModel.findOne({
-            $or: [
-              { slug: modelId },
-              { name: new RegExp(`^${modelId}$`, 'i') },
-              ...(modelName ? [{ name: new RegExp(`^${modelName}$`, 'i') }] : []),
-            ],
-          });
-        }
-      }
+      const pricingRule: any = resolved?.configRule ?? null;
+      let effectiveBasePrice = resolved
+        ? resolved.basePrice
+        : typeof customBasePrice === 'number' && customBasePrice > 0
+          ? customBasePrice
+          : 0;
+      const storageModifier = resolved ? resolved.variantAdjustment : 0;
 
-      if (modelDoc) {
-        effectiveBasePrice = effectiveBasePrice || modelDoc.basePrice;
-      }
-
-      // 2. Resolve variant & storage modifier if provided
-      if (variantId) {
-        if (mongoose.Types.ObjectId.isValid(variantId)) {
-          const variant = await StorageVariantModel.findById(variantId);
-          if (variant) storageModifier = variant.priceModifier;
-        } else if (modelDoc) {
-          const variant = await StorageVariantModel.findOne({
-            modelId: modelDoc._id,
-            $or: [{ capacity: variantId }, { capacity: new RegExp(variantId, 'i') }],
-          });
-          if (variant) storageModifier = variant.priceModifier;
-        }
-      }
-
-      // 3. Search for existing PricingRule
-      const targetModelId = modelDoc ? modelDoc._id : (modelId && mongoose.Types.ObjectId.isValid(modelId) ? modelId : null);
-      if (targetModelId) {
-        const query: any = { modelId: targetModelId, isActive: true };
-        if (variantId && mongoose.Types.ObjectId.isValid(variantId)) {
-          query.variantId = variantId;
-        }
-        pricingRule = await PricingRuleModel.findOne(query).sort({ version: -1 });
-        if (!pricingRule) {
-          pricingRule = await PricingRuleModel.findOne({ modelId: targetModelId, isActive: true }).sort({ version: -1 });
-        }
-      }
-
-      // 4. Fallback estimated base price from model name or standard tier if not resolved
+      // 2. Fallback estimated base price from model name or standard tier if not resolved
       if (!effectiveBasePrice) {
         const lowerName = (modelName || modelId || '').toLowerCase();
         if (lowerName.includes('pro max') || lowerName.includes('ultra')) {
@@ -285,9 +276,7 @@ export class CatalogueController {
       }
 
       // STEP 3: Map DB fields to engine's phone object live from DB
-      const baseVariantPrice = pricingRule
-        ? pricingRule.basePrice + (pricingRule.storagePriceAdjustment || 0)
-        : effectiveBasePrice + storageModifier;
+      const baseVariantPrice = effectiveBasePrice + storageModifier;
 
       const phoneData = {
         basePrice: baseVariantPrice,
@@ -312,10 +301,11 @@ export class CatalogueController {
 
       // Build structured breakdown for mobile app & UI display
       const valuation = ValuationEngine.calculate(
-        pricingRule || {
+        {
+          ...(pricingRule || {}),
           basePrice: effectiveBasePrice,
           storagePriceAdjustment: storageModifier,
-          version: 1,
+          version: pricingRule?.version || 1,
         },
         fullCondition,
         engineConfig
@@ -341,7 +331,7 @@ export class CatalogueController {
           valuation: {
             ...valuation,
             basePrice: engineResult.basePrice,
-            storageAdjustment: storageModifier || (pricingRule?.storagePriceAdjustment || 0),
+            storageAdjustment: storageModifier,
             scrapFloor: engineResult.scrapFloor,
             rawBodyPrice: engineResult.rawBodyPrice ?? engineResult.scrapFloor,
             clampedBodyPrice: engineResult.clampedBodyPrice ?? engineResult.scrapFloor,

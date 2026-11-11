@@ -8,6 +8,8 @@ import { SmartphoneModel } from '../../infrastructure/database/models/Smartphone
 import { StorageVariantModel } from '../../infrastructure/database/models/StorageVariant.js';
 import { PricingRuleModel } from '../../infrastructure/database/models/PricingRule.js';
 import { TokenService } from '../../infrastructure/security/tokenService.js';
+import { GoogleAuthService } from '../../infrastructure/security/GoogleAuthService.js';
+import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
 import { AdminRole } from '../../shared/types.js';
 
 describe('REVOO Backend Integration Tests', () => {
@@ -142,19 +144,38 @@ describe('REVOO Backend Integration Tests', () => {
       expect(res.body.data.tokens.accessToken).toBeDefined();
     });
 
-    test('POST /api/v1/auth/customer/google signs in with Google account', async () => {
-      const res = await request(app)
-        .post('/api/v1/auth/customer/google')
-        .send({
-          email: 'google.user@gmail.com',
-          fullName: 'Google User',
-          googleId: 'g_1234567890',
-        });
+    test('Email OTP: request then verify signs the customer in', async () => {
+      // Keep the test hermetic: never hit a real SMTP server from CI
+      const sendSpy = jest
+        .spyOn(NotificationService, 'sendOtp')
+        .mockResolvedValue({ success: true, delivered: false, message: 'Email OTP sent (test)' });
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.tokens.accessToken).toBeDefined();
-      expect(res.body.data.user.email).toBe('google.user@gmail.com');
+      const email = 'otp.tester@example.com';
+      const requested = await request(app)
+        .post('/api/v1/auth/customer/request-otp')
+        .send({ destination: email, channel: 'EMAIL' });
+
+      expect(requested.status).toBe(200);
+      expect(sendSpy).toHaveBeenCalledWith(email, 'EMAIL', expect.stringMatching(/^\d{6}$/), 5);
+      const otp = requested.body.data.devOtp;
+      expect(otp).toMatch(/^\d{6}$/);
+
+      const verified = await request(app)
+        .post('/api/v1/auth/customer/verify-otp')
+        .send({ destination: email, channel: 'EMAIL', otp });
+
+      expect(verified.status).toBe(200);
+      expect(verified.body.data.user.email).toBe(email);
+      expect(verified.body.data.tokens.accessToken).toBeDefined();
+      sendSpy.mockRestore();
+    });
+
+    test('Email OTP rejects an invalid email address', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/customer/request-otp')
+        .send({ destination: 'not-an-email', channel: 'EMAIL' });
+
+      expect(res.status).toBe(400);
     });
   });
 
@@ -171,6 +192,36 @@ describe('REVOO Backend Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.length).toBe(1);
       expect(res.body.data[0].name).toBe('iPhone 15 Pro');
+      // "Get up to" price = base + best variant modifier
+      expect(res.body.data[0].maxPrice).toBe(75000);
+    });
+
+    test('GET /api/v1/catalogue/models/:modelId returns per-variant prices', async () => {
+      const res = await request(app).get(`/api/v1/catalogue/models/${sampleModelId}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.variants[0].price).toBe(75000);
+      expect(res.body.data.maxPrice).toBe(75000);
+    });
+
+    test('POST /api/v1/catalogue/estimate ignores a client-supplied basePrice for catalogue models', async () => {
+      const res = await request(app)
+        .post('/api/v1/catalogue/estimate')
+        .send({
+          modelId: sampleModelId,
+          variantId: sampleVariantId,
+          basePrice: 999999,
+          basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: true },
+          touchGlassCondition: 'NO_SCRATCH',
+          screenDisplayCondition: 'NO_SPOT',
+          backPanelCondition: 'NO_DEFECTS',
+          sidePanelCondition: 'NO_DEFECTS',
+          hasOriginalBox: true,
+          hasOriginalCharger: true,
+          hasValidBill: true,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.valuation.finalCalculatedAmount).toBe(75000);
     });
 
     test('POST /api/v1/catalogue/estimate calculates accurate indicative estimate', async () => {
@@ -203,14 +254,31 @@ describe('REVOO Backend Integration Tests', () => {
   });
 
   describe('Customer Google OAuth Authentication', () => {
-    test('POST /api/v1/auth/customer/google - Authenticates new Google customer and issues tokens', async () => {
+    const verifiedGoogleUser = {
+      googleId: 'g_sub_1234567890',
+      email: 'google.tester@gmail.com',
+      fullName: 'Google Test User',
+      isEmailVerified: true,
+    };
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test('POST /api/v1/auth/customer/google - rejects an unverified email-only request (no Google token)', async () => {
       const res = await request(app)
         .post('/api/v1/auth/customer/google')
         .send({
-          email: 'google.tester@gmail.com',
-          fullName: 'Google Test User',
-          googleId: 'g_sub_1234567890',
+          email: 'victim@gmail.com',
+          fullName: 'Not Really Google',
+          googleId: 'g_forged',
         });
+
+      expect(res.status).toBe(400);
+      expect(res.body.data?.tokens).toBeUndefined();
+    });
+
+    test('POST /api/v1/auth/customer/google - Authenticates new Google customer from a verified ID token', async () => {
+      jest.spyOn(GoogleAuthService, 'verifyGoogleIdToken').mockResolvedValue(verifiedGoogleUser);
+      const res = await request(app).post('/api/v1/auth/customer/google').send({ idToken: 'signed.google.jwt' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -221,17 +289,21 @@ describe('REVOO Backend Integration Tests', () => {
     });
 
     test('POST /api/v1/auth/customer/google - Re-authenticating existing user retains Google ID', async () => {
-      const res = await request(app)
-        .post('/api/v1/auth/customer/google')
-        .send({
-          email: 'google.tester@gmail.com',
-          fullName: 'Google Test User',
-          googleId: 'g_sub_1234567890',
-        });
+      jest.spyOn(GoogleAuthService, 'verifyGoogleIdToken').mockResolvedValue(verifiedGoogleUser);
+      const res = await request(app).post('/api/v1/auth/customer/google').send({ idToken: 'signed.google.jwt' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.user.email).toBe('google.tester@gmail.com');
+    });
+
+    test('POST /api/v1/auth/customer/google - rejects a Google account with an unverified email', async () => {
+      jest
+        .spyOn(GoogleAuthService, 'verifyGoogleIdToken')
+        .mockResolvedValue({ ...verifiedGoogleUser, email: 'unverified@gmail.com', isEmailVerified: false });
+      const res = await request(app).post('/api/v1/auth/customer/google').send({ idToken: 'signed.google.jwt' });
+
+      expect(res.status).toBe(401);
     });
   });
 

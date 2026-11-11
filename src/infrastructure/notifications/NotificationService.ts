@@ -12,32 +12,93 @@ export interface SendNotificationOptions {
   metadata?: Record<string, any>;
 }
 
+export interface OtpDispatchResult {
+  success: boolean;
+  /** True only when the code actually left our servers (SMTP / WhatsApp accepted it). */
+  delivered: boolean;
+  message: string;
+}
+
+const PLACEHOLDER_VALUES = new Set(['', 'dummy', 'changeme', 'your-smtp-user', 'your-smtp-password']);
+
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
+
 export class NotificationService {
   private static transporter: nodemailer.Transporter | null = null;
 
+  /** SMTP is usable when a host or well-known service plus real credentials are configured. */
+  public static isEmailConfigured(): boolean {
+    const { smtpService, smtpHost, smtpUser, smtpPass } = config.email;
+    const hasServer = Boolean(smtpService || smtpHost);
+    return (
+      hasServer &&
+      !PLACEHOLDER_VALUES.has(smtpUser.trim().toLowerCase()) &&
+      !PLACEHOLDER_VALUES.has(smtpPass.trim().toLowerCase())
+    );
+  }
+
   private static getMailTransporter(): nodemailer.Transporter {
     if (!this.transporter) {
-      this.transporter = nodemailer.createTransport({
-        host: config.email.smtpHost,
-        port: config.email.smtpPort,
-        secure: config.email.smtpPort === 465,
-        auth: config.email.smtpUser
-          ? {
-              user: config.email.smtpUser,
-              pass: config.email.smtpPass,
+      const { smtpService, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass } = config.email;
+      this.transporter = nodemailer.createTransport(
+        smtpService
+          ? { service: smtpService, auth: { user: smtpUser, pass: smtpPass } }
+          : {
+              host: smtpHost,
+              port: smtpPort,
+              secure: smtpSecure,
+              auth: { user: smtpUser, pass: smtpPass },
             }
-          : undefined,
-      });
+      );
     }
     return this.transporter;
+  }
+
+  private static fromAddress(): string {
+    return `"${config.email.fromName}" <${config.email.from}>`;
+  }
+
+  private static otpEmailHtml(otp: string, expiresInMinutes: number): string {
+    const digits = escapeHtml(otp)
+      .split('')
+      .map(
+        (d) =>
+          `<td style="width:44px;height:52px;border-radius:12px;background:#fff7e6;border:1px solid #fcd9a0;font-size:26px;font-weight:800;color:#1f1147;text-align:center;font-family:'Segoe UI',Arial,sans-serif;">${d}</td>`
+      )
+      .join('<td style="width:8px"></td>');
+
+    return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f6f5fb;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f5fb;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:20px;border:1px solid #ece9f5;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;">
+        <tr><td style="height:6px;background:linear-gradient(90deg,#f59e0b,#ec4899,#8b5cf6);"></td></tr>
+        <tr><td style="padding:28px 28px 8px;">
+          <div style="font-size:22px;font-weight:800;color:#1f1147;letter-spacing:-0.3px;">Genie</div>
+          <div style="font-size:13px;color:#6b6585;margin-top:2px;">Sell your old phone, get paid at your door</div>
+        </td></tr>
+        <tr><td style="padding:16px 28px 0;">
+          <p style="margin:0 0 6px;font-size:16px;font-weight:700;color:#1f1147;">Your sign-in code</p>
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.5;color:#4b4666;">Enter this code on Genie to continue. It expires in ${expiresInMinutes} minutes.</p>
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>${digits}</tr></table>
+        </td></tr>
+        <tr><td style="padding:22px 28px 28px;">
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#8a85a3;">Never share this code with anyone, including Genie staff. If you didn't try to sign in, you can safely ignore this email.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
   }
 
   public static async sendOtp(
     destination: string,
     channel: 'WHATSAPP' | 'EMAIL',
-    otp: string
-  ): Promise<{ success: boolean; message: string }> {
-    const messageBody = `Your REVOO verification code is: ${otp}. It will expire in 5 minutes. Do not share this code with anyone.`;
+    otp: string,
+    expiresInMinutes = 5
+  ): Promise<OtpDispatchResult> {
+    const messageBody = `Your Genie verification code is ${otp}. It expires in ${expiresInMinutes} minutes. Do not share this code with anyone.`;
 
     if (channel === 'WHATSAPP') {
       if (config.whatsapp.enabled && config.whatsapp.accessToken && config.whatsapp.phoneNumberId) {
@@ -46,7 +107,7 @@ export class NotificationService {
           const response = await fetch(`${config.whatsapp.apiUrl}/${config.whatsapp.phoneNumberId}/messages`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${config.whatsapp.accessToken}`,
+              Authorization: `Bearer ${config.whatsapp.accessToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -59,47 +120,47 @@ export class NotificationService {
           const resData = await response.json();
           if (!response.ok) {
             console.error('[WhatsApp API Error]', resData);
-            return { success: false, message: 'Failed to deliver WhatsApp message' };
+            return { success: false, delivered: false, message: 'Failed to deliver WhatsApp message' };
           }
-          return { success: true, message: 'WhatsApp OTP sent successfully' };
+          return { success: true, delivered: true, message: 'WhatsApp OTP sent successfully' };
         } catch (err: any) {
           console.error('[WhatsApp Service Exception]', err);
-          return { success: false, message: err.message };
+          return { success: false, delivered: false, message: err.message };
         }
-      } else {
-        // WhatsApp dev adapter - log securely to console for testing
-        console.log(`[WHATSAPP ADAPTER (DEV)] Sending OTP to ${destination}: [OTP: ${otp}]`);
-        return { success: true, message: 'WhatsApp OTP sent (Development sandbox)' };
       }
-    } else {
-      // Email OTP
-      if (config.isProduction && config.email.smtpUser) {
-        try {
-          const mailer = this.getMailTransporter();
-          await mailer.sendMail({
-            from: `"REVOO Security" <${config.email.from}>`,
-            to: destination,
-            subject: 'Your REVOO Verification Code',
-            text: messageBody,
-            html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:8px;max-width:500px;">
-              <h2 style="color:#0B6623;margin-top:0;">REVOO Verification Code</h2>
-              <p>Your one-time password (OTP) is:</p>
-              <div style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#0B6623;padding:12px;background:#f0fdf4;border-radius:6px;text-align:center;">
-                ${otp}
-              </div>
-              <p style="color:#64748b;font-size:13px;margin-top:20px;">Valid for 5 minutes. If you did not request this, please ignore this email.</p>
-            </div>`,
-          });
-          return { success: true, message: 'Email OTP dispatched' };
-        } catch (err: any) {
-          console.error('[Email Service Error]', err);
-          return { success: false, message: err.message };
+      // WhatsApp dev adapter - log to console for testing
+      console.log(`[WHATSAPP ADAPTER (DEV)] OTP for ${destination}: ${otp}`);
+      return { success: true, delivered: false, message: 'WhatsApp OTP sent (Development sandbox)' };
+    }
+
+    // Email OTP via nodemailer
+    if (NotificationService.isEmailConfigured()) {
+      try {
+        await NotificationService.getMailTransporter().sendMail({
+          from: NotificationService.fromAddress(),
+          to: destination,
+          subject: `${otp} is your Genie sign-in code`,
+          text: messageBody,
+          html: NotificationService.otpEmailHtml(otp, expiresInMinutes),
+        });
+        return { success: true, delivered: true, message: `We've sent a 6-digit code to ${destination}.` };
+      } catch (err: any) {
+        console.error('[Email Service Error]', err?.message || err);
+        if (config.isProduction) {
+          return { success: false, delivered: false, message: 'We could not send the email right now. Please try again in a minute.' };
         }
-      } else {
-        console.log(`[EMAIL ADAPTER (DEV)] Sending OTP to ${destination}: [OTP: ${otp}]`);
-        return { success: true, message: 'Email OTP sent (Development sandbox)' };
+        // Development: keep the flow usable even with a broken SMTP setup
+        console.log(`[EMAIL ADAPTER (DEV)] SMTP failed, OTP for ${destination}: ${otp}`);
+        return { success: true, delivered: false, message: 'Email OTP generated (SMTP failed — development fallback)' };
       }
     }
+
+    if (config.isProduction) {
+      console.error('[Email Service] SMTP is not configured (set SMTP_SERVICE or SMTP_HOST, SMTP_USER, SMTP_PASS).');
+      return { success: false, delivered: false, message: 'Email sign-in is temporarily unavailable. Please continue with Google.' };
+    }
+    console.log(`[EMAIL ADAPTER (DEV)] OTP for ${destination}: ${otp}`);
+    return { success: true, delivered: false, message: 'Email OTP sent (Development sandbox)' };
   }
 
   public static async notify(options: SendNotificationOptions): Promise<void> {
@@ -116,10 +177,9 @@ export class NotificationService {
       });
 
       // Dispatch external channel if configured
-      if (options.channel === 'EMAIL' && config.isProduction && config.email.smtpUser) {
-        const mailer = this.getMailTransporter();
-        await mailer.sendMail({
-          from: `"REVOO" <${config.email.from}>`,
+      if (options.channel === 'EMAIL' && NotificationService.isEmailConfigured()) {
+        await NotificationService.getMailTransporter().sendMail({
+          from: NotificationService.fromAddress(),
           to: options.destination,
           subject: options.title,
           text: options.body,
@@ -130,4 +190,3 @@ export class NotificationService {
     }
   }
 }
-

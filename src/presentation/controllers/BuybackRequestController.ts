@@ -11,6 +11,7 @@ import { CustomerOfferDecisionModel } from '../../infrastructure/database/models
 import { PaymentModel } from '../../infrastructure/database/models/Payment.js';
 import { DeviceReturnModel } from '../../infrastructure/database/models/DeviceReturn.js';
 import { ValuationEngine } from '../../domain/services/ValuationEngine.js';
+import { DevicePriceResolver } from '../../infrastructure/pricing/DevicePriceResolver.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
 import { AppError, RequestStatus, FinalOfferStatus, PaymentStatus, ReturnStatus } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
@@ -26,58 +27,42 @@ export class BuybackRequestController {
     try {
       const userId = req.user?.id;
       const rawBody = req.body || {};
-      const modelId = rawBody.modelId || rawBody.device?.modelId || rawBody.device?.modelName;
-      const variantId = rawBody.variantId || rawBody.device?.variantId;
+      const modelId = rawBody.modelId || rawBody.device?.modelId;
+      const modelName = rawBody.device?.modelName;
+      const variantIdInput = rawBody.variantId || rawBody.device?.variantId;
+      const variantCapacityInput = rawBody.variantCapacity || rawBody.device?.variant;
       const declaredCondition = rawBody.declaredCondition || rawBody.conditions || {};
       const pickupAddress = rawBody.pickupAddress;
       const photoUrls = rawBody.photoUrls;
 
-      let model: any = null;
-      if (mongoose.Types.ObjectId.isValid(modelId)) {
-        model = await SmartphoneModel.findById(modelId).populate('brandId', 'name');
-      }
-      if (!model) {
-        model = await SmartphoneModel.findOne({
-          $or: [
-            { slug: modelId },
-            { name: new RegExp(String(modelId).replace(/[-_]/g, ' '), 'i') },
-          ],
-        }).populate('brandId', 'name');
-      }
-      if (!model) {
-        model = await SmartphoneModel.findOne({ isPublished: true, isArchived: false }).populate('brandId', 'name');
+      // Resolve the exact catalogue device and its admin-configured price. Never fall back to an
+      // unrelated model: booking the wrong device would quote the customer the wrong price.
+      const resolved = await DevicePriceResolver.resolve({
+        modelId: typeof modelId === 'string' ? modelId : undefined,
+        modelName: typeof modelName === 'string' ? modelName : undefined,
+        variantId: typeof variantIdInput === 'string' ? variantIdInput : undefined,
+        variantCapacity: typeof variantCapacityInput === 'string' ? variantCapacityInput : undefined,
+      });
+
+      const model: any = resolved?.model;
+      if (!resolved || !model || model.isArchived) {
+        return next(new AppError('Selected device is unavailable. Please choose it again from the catalogue.', 400));
       }
 
-      if (!model || model.isArchived) {
-        return next(new AppError('Selected smartphone model is unavailable.', 400));
-      }
-
-      let storageCapacity = 'Standard';
-      let storagePriceAdjustment = 0;
-      if (variantId && mongoose.Types.ObjectId.isValid(variantId)) {
-        const variant = await StorageVariantModel.findById(variantId);
-        if (variant) {
-          storageCapacity = variant.capacity;
-          storagePriceAdjustment = variant.priceModifier;
-        }
-      }
-
-      // Authoritative pricing calculation
-      let pricingRule = null;
-      if (mongoose.Types.ObjectId.isValid(model._id)) {
-        pricingRule = await PricingRuleModel.findOne({ modelId: model._id, isActive: true }).sort({ version: -1 });
-      }
-
-      if (!pricingRule) {
-        pricingRule = await PricingRuleModel.create({
-          modelId: model._id,
-          variantId: variantId && mongoose.Types.ObjectId.isValid(variantId) ? variantId : undefined,
-          basePrice: model.basePrice || 35000,
-          storagePriceAdjustment,
-          version: 1,
-          isActive: true,
-        });
-      }
+      const variantId = resolved.variant?._id?.toString();
+      const storageCapacity = resolved.variant?.capacity || (typeof variantCapacityInput === 'string' && variantCapacityInput) || 'Standard';
+      const configRule: any = resolved.configRule;
+      const pricingRule: any = {
+        ...(configRule || {}),
+        _id: configRule?._id ?? new mongoose.Types.ObjectId(),
+        modelId: model._id,
+        variantId: resolved.variant?._id,
+        basePrice: resolved.basePrice,
+        storagePriceAdjustment: resolved.variantAdjustment,
+        version: configRule?.version || 1,
+        isActive: true,
+        effectiveFrom: configRule?.effectiveFrom || new Date(),
+      };
 
       // Normalize declared condition for both DOFY and legacy formats
       const normCondition: any = { ...(declaredCondition || {}) };

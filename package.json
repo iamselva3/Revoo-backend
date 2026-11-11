@@ -10,6 +10,7 @@
     "prestart": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "seed": "tsx src/infrastructure/database/seeds/seed.ts",
+    "seed:prices": "tsx scripts/seed-prices.ts",
     "test": "jest --runInBand --detectOpenHandles"
   },
   "dependencies": {

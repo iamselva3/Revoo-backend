@@ -67,6 +67,18 @@ export class ValuationEngine {
       c.basicQuestions?.isTouchscreenWorking === false
     ) {
       screenKey = 'touch_screen_not_working';
+    } else if (c.touchGlassCondition !== undefined && c.touchGlassCondition !== null) {
+      // Website "Physical condition" step: touch-glass scratches/cracks (single select)
+      const glass = String(c.touchGlassCondition).toUpperCase();
+      if (glass === 'CRACKED_GLASS' || glass === 'GLASS_CRACKED') {
+        screenKey = 'screen_cracked_glass_only';
+      } else if (glass === 'HEAVY_SCRATCHES') {
+        screenKey = 'heavy_screen_scratches';
+      } else if (glass === 'MINOR_SCRATCHES') {
+        screenKey = 'minor_screen_scratches';
+      } else {
+        screenKey = 'flawless';
+      }
     } else if (c.displayCondition) {
       const dc = String(c.displayCondition).toUpperCase();
       if (dc === 'BROKEN_OR_DEAD_PIXELS' || dc === 'DEAD_PIXELS' || dc === 'DISPLAY_SPOTS_OR_DEAD_PIXELS') {
@@ -183,6 +195,17 @@ export class ValuationEngine {
 
     const hf = c.hardwareFaults || {};
     const ff = c.functionalFaults || {};
+
+    // Website "Physical condition" step: display spots / lines (single select). Ignored when the
+    // touchscreen is dead, which is already priced as the most severe screen condition.
+    if (screenKey !== 'touch_screen_not_working' && c.screenDisplayCondition) {
+      const display = String(c.screenDisplayCondition).toUpperCase();
+      if (display === 'MAJOR_SPOTS_OR_LINES' || display === 'DEAD_PIXELS' || display === 'LINES_ON_DISPLAY') {
+        hardwareSet.add('display_spots_or_dead_pixels');
+      } else if (display === 'MINOR_SPOTS') {
+        hardwareSet.add('minor_display_spots');
+      }
+    }
 
     if (hf.cameraGlassBroken || c.cameraGlassBroken || c.camera_glass_broken) {
       hardwareSet.add('camera_glass_broken');
@@ -372,6 +395,14 @@ export class ValuationEngine {
           description: d.reason === 'physical_damage'
             ? 'Physical damage automatically voids manufacturer warranty per policy'
             : 'No valid invoice with matching IMEI provided',
+          adjustment: -d.amount,
+          rateSource,
+        });
+      } else if (d.key === 'display_spots_or_dead_pixels' || d.key === 'minor_display_spots') {
+        screenDeduction += d.amount;
+        breakdown.push({
+          component: 'Display Condition',
+          description: `Condition: ${d.key.replace(/_/g, ' ')}`,
           adjustment: -d.amount,
           rateSource,
         });

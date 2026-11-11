@@ -67,6 +67,70 @@ export class GoogleAuthService {
   }
 
   /**
+   * Verifies an OAuth 2.0 access token from the Google Identity Services token client.
+   * The token must have been issued to one of our OAuth clients (prevents token substitution)
+   * and must belong to a verified email address.
+   */
+  public static async verifyAccessToken(accessToken: string): Promise<VerifiedGoogleUser> {
+    if (!accessToken || typeof accessToken !== 'string') {
+      throw new AppError('Google access token is required.', 400);
+    }
+
+    let info: any;
+    try {
+      const res = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (!res.ok) throw new Error(`tokeninfo responded ${res.status}`);
+      info = await res.json();
+    } catch {
+      throw new AppError('Your Google session is invalid or expired. Please try again.', 401);
+    }
+
+    const allowedClients = new Set(
+      [config.google.clientId, ...config.google.allowedClientIds].filter(Boolean)
+    );
+    if (allowedClients.size > 0) {
+      if (!allowedClients.has(info.aud) && !allowedClients.has(info.azp)) {
+        throw new AppError('This Google token was issued for a different application.', 401);
+      }
+    } else {
+      console.warn('[GoogleAuth] GOOGLE_CLIENT_ID is not set; access-token audience is not being checked.');
+    }
+
+    const emailVerified =
+      info.email_verified === true || info.email_verified === 'true' || info.verified_email === true;
+    if (!info.email || !emailVerified) {
+      throw new AppError('Your Google account email is not verified.', 401);
+    }
+
+    let fullName: string | undefined;
+    let avatarUrl: string | undefined;
+    try {
+      const profileRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (profileRes.ok) {
+        const profile: any = await profileRes.json();
+        fullName = profile.name;
+        avatarUrl = profile.picture;
+      }
+    } catch {
+      // Profile details are optional; identity is already verified above.
+    }
+
+    return {
+      googleId: String(info.sub || info.user_id),
+      email: String(info.email).toLowerCase().trim(),
+      fullName,
+      avatarUrl,
+      isEmailVerified: true,
+    };
+  }
+
+  /**
    * Exchanges an authorization code (serverAuthCode) for tokens and verifies identity
    */
   public static async exchangeAuthCode(code: string): Promise<VerifiedGoogleUser> {

@@ -9,16 +9,25 @@ import { NotificationService } from '../../infrastructure/notifications/Notifica
 import { AppError, UserStatus } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedCustomerRequest, AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
+import { config } from '../../config/index.js';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export class AuthController {
   public static async requestCustomerOtp(req: Request, res: Response, next: NextFunction) {
     try {
-      const { channel, fullName } = req.body;
+      const { channel } = req.body;
       const rawDest = req.body.destination || req.body.phone || req.body.email;
-      if (!rawDest) {
+      if (channel !== 'EMAIL' && channel !== 'WHATSAPP') {
+        return next(new AppError('Unsupported verification channel.', 400));
+      }
+      if (!rawDest || typeof rawDest !== 'string') {
         return next(new AppError('Phone number or email destination is required.', 400));
       }
       const normalizedDest = channel === 'EMAIL' ? rawDest.toLowerCase().trim() : rawDest.trim();
+      if (channel === 'EMAIL' && !EMAIL_PATTERN.test(normalizedDest)) {
+        return next(new AppError('Please enter a valid email address.', 400));
+      }
 
       // Check recent OTP request to throttle resends (60s cooldown)
       const existingOtp = await OtpRecordModel.findOne({
@@ -40,7 +49,7 @@ export class AuthController {
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
       const resendAvailableAt = new Date(Date.now() + 60 * 1000); // 60 seconds
 
-      await OtpRecordModel.create({
+      const otpRecord = await OtpRecordModel.create({
         destination: normalizedDest,
         channel,
         otpHash,
@@ -51,24 +60,15 @@ export class AuthController {
         isUsed: false,
       });
 
-      // Dispatch through NotificationService
-      const dispatchResult = await NotificationService.sendOtp(normalizedDest, channel, otp);
-
-      // Upsert pending user if not found
-      if (channel === 'EMAIL') {
-        await UserModel.findOneAndUpdate(
-          { email: normalizedDest },
-          { $setOnInsert: { email: normalizedDest, fullName, status: UserStatus.ACTIVE } },
-          { upsert: true }
-        );
-      } else {
-        await UserModel.findOneAndUpdate(
-          { phone: normalizedDest },
-          { $setOnInsert: { phone: normalizedDest, fullName, status: UserStatus.ACTIVE } },
-          { upsert: true }
-        );
+      // Dispatch through NotificationService (nodemailer for EMAIL)
+      const dispatchResult = await NotificationService.sendOtp(normalizedDest, channel, otp, 5);
+      if (!dispatchResult.success) {
+        // Don't leave an undeliverable code blocking the resend cooldown
+        await OtpRecordModel.deleteOne({ _id: otpRecord._id });
+        return next(new AppError(dispatchResult.message, 503));
       }
 
+      // The account itself is created only after the code is verified (see verifyCustomerOtp).
       res.status(200).json({
         success: true,
         message: dispatchResult.message,
@@ -77,7 +77,8 @@ export class AuthController {
           channel,
           resendCooldownSeconds: 60,
           expiresInSeconds: 300,
-          ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {}),
+          // Only expose the code in development when it could not actually be delivered
+          ...(!config.isProduction && !dispatchResult.delivered ? { devOtp: otp } : {}),
         },
       });
     } catch (err) {
@@ -335,74 +336,29 @@ export class AuthController {
   public static async customerGoogleAuth(req: Request, res: Response, next: NextFunction) {
     try {
       const { idToken, code, accessToken, referralCode } = req.body;
-      let email: string;
-      let fullName: string | undefined;
-      let googleId: string;
-      let avatarUrl: string | undefined;
 
+      // Identity must always be proven by Google. A client-supplied email alone is never trusted.
+      let googleUser;
       if (idToken) {
-        // Authenticate via cryptographically signed Google ID Token
-        const googleUser = await GoogleAuthService.verifyGoogleIdToken(idToken);
-        email = googleUser.email;
-        fullName = googleUser.fullName;
-        googleId = googleUser.googleId;
-        avatarUrl = googleUser.avatarUrl;
+        // Cryptographically signed Google ID Token (mobile app, One Tap)
+        googleUser = await GoogleAuthService.verifyGoogleIdToken(idToken);
       } else if (code) {
-        // Authenticate via Google OAuth 2.0 authorization code exchange
-        const googleUser = await GoogleAuthService.exchangeAuthCode(code);
-        email = googleUser.email;
-        fullName = googleUser.fullName;
-        googleId = googleUser.googleId;
-        avatarUrl = googleUser.avatarUrl;
+        // OAuth 2.0 authorization code exchange
+        googleUser = await GoogleAuthService.exchangeAuthCode(code);
       } else if (accessToken) {
-        // Authenticate via Google OAuth 2.0 access token (from google.accounts.oauth2 token client)
-        try {
-          const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
-          if (tokenRes.ok) {
-            const tokenInfo: any = await tokenRes.json();
-            email = tokenInfo.email;
-            googleId = tokenInfo.sub || tokenInfo.user_id || `g_${Date.now()}`;
-            fullName = req.body.fullName;
-            avatarUrl = req.body.avatarUrl;
-          } else {
-            // If tokeninfo fails, check userinfo directly
-            const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            if (userRes.ok) {
-              const uInfo: any = await userRes.json();
-              email = uInfo.email;
-              googleId = uInfo.sub || `g_${Date.now()}`;
-              fullName = uInfo.name || req.body.fullName;
-              avatarUrl = uInfo.picture || req.body.avatarUrl;
-            } else if (req.body.email) {
-              email = req.body.email.toLowerCase().trim();
-              googleId = req.body.googleId || `g_${Date.now()}`;
-              fullName = req.body.fullName;
-              avatarUrl = req.body.avatarUrl;
-            } else {
-              return next(new AppError('Invalid Google access token.', 401));
-            }
-          }
-        } catch {
-          if (req.body.email) {
-            email = req.body.email.toLowerCase().trim();
-            googleId = req.body.googleId || `g_${Date.now()}`;
-            fullName = req.body.fullName;
-            avatarUrl = req.body.avatarUrl;
-          } else {
-            return next(new AppError('Unable to verify Google access token.', 401));
-          }
-        }
-      } else if (req.body.email) {
-        // Email provided with verified frontend OAuth
-        email = req.body.email.toLowerCase().trim();
-        fullName = req.body.fullName;
-        googleId = req.body.googleId || `g_${Date.now()}`;
-        avatarUrl = req.body.avatarUrl;
+        // OAuth 2.0 access token from the web token client; audience is checked server-side
+        googleUser = await GoogleAuthService.verifyAccessToken(accessToken);
       } else {
         return next(new AppError('Google ID Token (idToken), authorization code (code), or access token is required for Google Sign-In.', 400));
       }
+
+      if (!googleUser.isEmailVerified) {
+        return next(new AppError('Your Google account email is not verified.', 401));
+      }
+
+      const email = googleUser.email;
+      const fullName = googleUser.fullName;
+      const googleId = googleUser.googleId;
 
       const normalizedEmail = email.toLowerCase().trim();
       let user = await UserModel.findOne({
