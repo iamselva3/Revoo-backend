@@ -1052,7 +1052,7 @@ async function seedDatabase() {
     // 6. Seed sample Buyback Requests in different stages
     const sampleRequests = [
         {
-            requestNumber: 'REV-2026-1001',
+            requestNumber: 'GENIE-2026-1001',
             status: types_js_1.RequestStatus.SUBMITTED,
             declaredCondition: {
                 displayCondition: 'FLAWLESS',
@@ -1072,7 +1072,7 @@ async function seedDatabase() {
             estimateAmount: 85500,
         },
         {
-            requestNumber: 'REV-2026-1002',
+            requestNumber: 'GENIE-2026-1002',
             status: types_js_1.RequestStatus.ASSIGNED_FOR_COLLECTION,
             declaredCondition: {
                 displayCondition: 'MINOR_SCRATCHES',
@@ -1092,7 +1092,7 @@ async function seedDatabase() {
             estimateAmount: 68500,
         },
         {
-            requestNumber: 'REV-2026-1003',
+            requestNumber: 'GENIE-2026-1003',
             status: types_js_1.RequestStatus.UNDER_INSPECTION,
             declaredCondition: {
                 displayCondition: 'FLAWLESS',
@@ -1112,7 +1112,7 @@ async function seedDatabase() {
             estimateAmount: 43000,
         },
         {
-            requestNumber: 'REV-2026-1004',
+            requestNumber: 'GENIE-2026-1004',
             status: types_js_1.RequestStatus.AWAITING_CUSTOMER_DECISION,
             declaredCondition: {
                 displayCondition: 'MINOR_SCRATCHES',
@@ -1132,7 +1132,7 @@ async function seedDatabase() {
             estimateAmount: 76000,
         },
         {
-            requestNumber: 'REV-2026-1005',
+            requestNumber: 'GENIE-2026-1005',
             status: types_js_1.RequestStatus.PAYMENT_COMPLETED,
             declaredCondition: {
                 displayCondition: 'FLAWLESS',

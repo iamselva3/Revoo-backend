@@ -16,6 +16,7 @@ const Invoice_js_1 = require("../../infrastructure/database/models/Invoice.js");
 const ValuationEngine_js_1 = require("../../domain/services/ValuationEngine.js");
 const types_js_1 = require("../../shared/types.js");
 const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
+const DevicePriceResolver_js_1 = require("../../infrastructure/pricing/DevicePriceResolver.js");
 class CatalogueController {
     // --- Public Customer Endpoints ---
     static async getActiveBrands(req, res, next) {
@@ -68,7 +69,18 @@ class CatalogueController {
                 }
             }
             const models = await SmartphoneModel_js_1.SmartphoneModel.find(filterQuery).sort({ releaseYear: -1, name: 1 });
-            res.status(200).json({ success: true, data: models });
+            const ranges = await DevicePriceResolver_js_1.DevicePriceResolver.priceRanges(models);
+            // Each model carries its "Get up to" price (best variant, top condition)
+            const data = models.map((m) => {
+                const range = ranges.get(String(m._id));
+                return {
+                    ...m.toObject(),
+                    maxPrice: range?.maxPrice ?? DevicePriceResolver_js_1.DevicePriceResolver.variantPrice(m),
+                    minPrice: range?.minPrice ?? DevicePriceResolver_js_1.DevicePriceResolver.variantPrice(m),
+                    variantCount: range?.variantCount ?? 0,
+                };
+            });
+            res.status(200).json({ success: true, data });
         }
         catch (err) {
             next(err);
@@ -92,15 +104,26 @@ class CatalogueController {
             if (!model || model.isArchived) {
                 return next(new types_js_1.AppError('Smartphone model not found or currently unavailable.', 404));
             }
-            const variants = await StorageVariant_js_1.StorageVariantModel.find({
+            const variantDocs = await StorageVariant_js_1.StorageVariantModel.find({
                 modelId: model._id,
                 isPublished: true,
             }).sort({ priceModifier: 1 });
+            // Attach the top-condition price of every variant so the storefront can show
+            // "Get up to ₹X" per variant without re-deriving the pricing formula client-side.
+            const variants = variantDocs.map((v) => ({
+                ...v.toObject(),
+                price: DevicePriceResolver_js_1.DevicePriceResolver.variantPrice(model, v),
+            }));
+            const prices = variants.length > 0 ? variants.map((v) => v.price) : [DevicePriceResolver_js_1.DevicePriceResolver.variantPrice(model)];
+            const maxPrice = Math.max(...prices);
+            const minPrice = Math.min(...prices);
             res.status(200).json({
                 success: true,
                 data: {
-                    model,
+                    model: { ...model.toObject(), maxPrice, minPrice },
                     variants,
+                    maxPrice,
+                    minPrice,
                 },
             });
         }
@@ -115,57 +138,22 @@ class CatalogueController {
             basicQuestions, backPanelCondition, sidePanelCondition, hardwareFaults, isPhoneWorking, isTouchscreenWorking, isDisplayOriginal, hasValidWarranty, volumeButtonNotWorking, wifiOrBluetoothNotWorking, chargingPortNotWorking, proximitySensorNotWorking, powerButtonNotWorking, earSpeakerNotWorking, vibratorNotWorking, 
             // Legacy fields
             displayCondition = 'FLAWLESS', bodyCondition = 'FLAWLESS', batteryHealth = 'ABOVE_85', functionalFaults = {}, hasOriginalBox = false, hasOriginalCharger = false, hasValidBill = false, } = req.body;
-            let pricingRule = null;
-            let modelDoc = null;
-            let effectiveBasePrice = typeof customBasePrice === 'number' && customBasePrice > 0 ? customBasePrice : 0;
-            let storageModifier = 0;
-            // 1. Resolve modelDoc & real model ObjectId if possible
-            if (modelId) {
-                if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
-                    modelDoc = await SmartphoneModel_js_1.SmartphoneModel.findById(modelId);
-                }
-                else {
-                    modelDoc = await SmartphoneModel_js_1.SmartphoneModel.findOne({
-                        $or: [
-                            { slug: modelId },
-                            { name: new RegExp(`^${modelId}$`, 'i') },
-                            ...(modelName ? [{ name: new RegExp(`^${modelName}$`, 'i') }] : []),
-                        ],
-                    });
-                }
-            }
-            if (modelDoc) {
-                effectiveBasePrice = effectiveBasePrice || modelDoc.basePrice;
-            }
-            // 2. Resolve variant & storage modifier if provided
-            if (variantId) {
-                if (mongoose_1.default.Types.ObjectId.isValid(variantId)) {
-                    const variant = await StorageVariant_js_1.StorageVariantModel.findById(variantId);
-                    if (variant)
-                        storageModifier = variant.priceModifier;
-                }
-                else if (modelDoc) {
-                    const variant = await StorageVariant_js_1.StorageVariantModel.findOne({
-                        modelId: modelDoc._id,
-                        $or: [{ capacity: variantId }, { capacity: new RegExp(variantId, 'i') }],
-                    });
-                    if (variant)
-                        storageModifier = variant.priceModifier;
-                }
-            }
-            // 3. Search for existing PricingRule
-            const targetModelId = modelDoc ? modelDoc._id : (modelId && mongoose_1.default.Types.ObjectId.isValid(modelId) ? modelId : null);
-            if (targetModelId) {
-                const query = { modelId: targetModelId, isActive: true };
-                if (variantId && mongoose_1.default.Types.ObjectId.isValid(variantId)) {
-                    query.variantId = variantId;
-                }
-                pricingRule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
-                if (!pricingRule) {
-                    pricingRule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId: targetModelId, isActive: true }).sort({ version: -1 });
-                }
-            }
-            // 4. Fallback estimated base price from model name or standard tier if not resolved
+            // 1. Resolve the catalogue price. When the model is in the catalogue its admin-configured
+            //    price is authoritative and any client-supplied basePrice is ignored.
+            const resolved = await DevicePriceResolver_js_1.DevicePriceResolver.resolve({
+                modelId: typeof modelId === 'string' ? modelId : undefined,
+                modelName: typeof modelName === 'string' ? modelName : undefined,
+                variantId: typeof variantId === 'string' ? variantId : undefined,
+                variantCapacity: typeof req.body.variantCapacity === 'string' ? req.body.variantCapacity : undefined,
+            });
+            const pricingRule = resolved?.configRule ?? null;
+            let effectiveBasePrice = resolved
+                ? resolved.basePrice
+                : typeof customBasePrice === 'number' && customBasePrice > 0
+                    ? customBasePrice
+                    : 0;
+            const storageModifier = resolved ? resolved.variantAdjustment : 0;
+            // 2. Fallback estimated base price from model name or standard tier if not resolved
             if (!effectiveBasePrice) {
                 const lowerName = (modelName || modelId || '').toLowerCase();
                 if (lowerName.includes('pro max') || lowerName.includes('ultra')) {
@@ -247,9 +235,7 @@ class CatalogueController {
                 console.warn(`[PRICING ENGINE WARNING] Unmapped fields received in estimate request: ${unmappedFields.join(', ')}`);
             }
             // STEP 3: Map DB fields to engine's phone object live from DB
-            const baseVariantPrice = pricingRule
-                ? pricingRule.basePrice + (pricingRule.storagePriceAdjustment || 0)
-                : effectiveBasePrice + storageModifier;
+            const baseVariantPrice = effectiveBasePrice + storageModifier;
             const phoneData = {
                 basePrice: baseVariantPrice,
                 minScrapPrice: pricingRule?.minScrapPrice ?? pricingRule?.customScrapFloor,
@@ -267,10 +253,11 @@ class CatalogueController {
             // Log engine result for every quote for debugging price mismatches
             console.log('[PRICING ENGINE RESULT]', JSON.stringify(engineResult, null, 2));
             // Build structured breakdown for mobile app & UI display
-            const valuation = ValuationEngine_js_1.ValuationEngine.calculate(pricingRule || {
+            const valuation = ValuationEngine_js_1.ValuationEngine.calculate({
+                ...(pricingRule || {}),
                 basePrice: effectiveBasePrice,
                 storagePriceAdjustment: storageModifier,
-                version: 1,
+                version: pricingRule?.version || 1,
             }, fullCondition, engineConfig);
             res.status(200).json({
                 success: true,
@@ -291,7 +278,7 @@ class CatalogueController {
                     valuation: {
                         ...valuation,
                         basePrice: engineResult.basePrice,
-                        storageAdjustment: storageModifier || (pricingRule?.storagePriceAdjustment || 0),
+                        storageAdjustment: storageModifier,
                         scrapFloor: engineResult.scrapFloor,
                         rawBodyPrice: engineResult.rawBodyPrice ?? engineResult.scrapFloor,
                         clampedBodyPrice: engineResult.clampedBodyPrice ?? engineResult.scrapFloor,
@@ -991,7 +978,7 @@ class CatalogueController {
     // --- Banner Management (Admin Editable) ---
     static async getBanners(req, res, next) {
         try {
-            let banners = await Banner_js_1.BannerModel.find({ isActive: true }).sort({ displayOrder: 1, createdAt: -1 });
+            let banners = await Banner_js_1.BannerModel.find({ isActive: true, isPopupModal: { $ne: true } }).sort({ displayOrder: 1, createdAt: -1 });
             if (banners.length === 0) {
                 const defaultBanners = [
                     {
@@ -1183,10 +1170,10 @@ class CatalogueController {
         try {
             const invoiceData = req.body;
             if (!invoiceData.invoiceNumber) {
-                invoiceData.invoiceNumber = `REV-INV-${Math.floor(100000 + Math.random() * 900000)}`;
+                invoiceData.invoiceNumber = `GENIE-INV-${Math.floor(100000 + Math.random() * 900000)}`;
             }
             if (!invoiceData.orderNumber) {
-                invoiceData.orderNumber = `REV-${Date.now().toString().slice(-6)}`;
+                invoiceData.orderNumber = `GENIE-${Date.now().toString().slice(-6)}`;
             }
             const invoice = await Invoice_js_1.InvoiceModel.create(invoiceData);
             res.status(201).json({
@@ -1206,8 +1193,8 @@ class CatalogueController {
                 // Seed realistic starter customer tax invoices so admin immediately sees historical data
                 const sampleInvoices = [
                     {
-                        invoiceNumber: 'REV-INV-849201',
-                        orderNumber: 'REV-982142',
+                        invoiceNumber: 'GENIE-INV-849201',
+                        orderNumber: 'GENIE-982142',
                         customerName: 'Aarav Sharma',
                         customerPhone: '+91 98450 12345',
                         customerEmail: 'aarav.sharma@gmail.com',
@@ -1226,8 +1213,8 @@ class CatalogueController {
                         orderDate: new Date(Date.now() - 3600000 * 4),
                     },
                     {
-                        invoiceNumber: 'REV-INV-732915',
-                        orderNumber: 'REV-610492',
+                        invoiceNumber: 'GENIE-INV-732915',
+                        orderNumber: 'GENIE-610492',
                         customerName: 'Priya Sundaram',
                         customerPhone: '+91 99620 67890',
                         customerEmail: 'priya.sundaram@outlook.com',
@@ -1246,8 +1233,8 @@ class CatalogueController {
                         orderDate: new Date(Date.now() - 3600000 * 24),
                     },
                     {
-                        invoiceNumber: 'REV-INV-619482',
-                        orderNumber: 'REV-452109',
+                        invoiceNumber: 'GENIE-INV-619482',
+                        orderNumber: 'GENIE-452109',
                         customerName: 'Vikram Joshi',
                         customerPhone: '+91 97110 54321',
                         customerEmail: 'vikram.joshi@techcorp.in',
@@ -1268,6 +1255,17 @@ class CatalogueController {
                 ];
                 invoices = await Invoice_js_1.InvoiceModel.insertMany(sampleInvoices);
             }
+            const normalizedInvoices = invoices.map((doc) => {
+                const item = doc.toObject ? doc.toObject() : doc;
+                if (item.invoiceNumber && /^REV-/i.test(item.invoiceNumber)) {
+                    item.invoiceNumber = item.invoiceNumber.replace(/^REV-/i, 'GENIE-');
+                }
+                if (item.orderNumber && /^REV-/i.test(item.orderNumber)) {
+                    item.orderNumber = item.orderNumber.replace(/^REV-/i, 'GENIE-');
+                }
+                return item;
+            });
+            res.status(200).json({ success: true, data: normalizedInvoices });
             res.status(200).json({ success: true, count: invoices.length, data: invoices });
         }
         catch (err) {

@@ -8,6 +8,7 @@ const DEFAULT_PCT = {
     flawless: 0,
     minor_screen_scratches: 0.06,
     heavy_screen_scratches: 0.12,
+    minor_display_spots: 0.12, // 1-2 small spots, display otherwise usable
     display_spots_or_dead_pixels: 0.28,
     screen_cracked_glass_only: 0.35,
     touch_screen_not_working: 0.62,

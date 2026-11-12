@@ -1270,10 +1270,10 @@ export class CatalogueController {
     try {
       const invoiceData = req.body;
       if (!invoiceData.invoiceNumber) {
-        invoiceData.invoiceNumber = `REV-INV-${Math.floor(100000 + Math.random() * 900000)}`;
+        invoiceData.invoiceNumber = `GENIE-INV-${Math.floor(100000 + Math.random() * 900000)}`;
       }
       if (!invoiceData.orderNumber) {
-        invoiceData.orderNumber = `REV-${Date.now().toString().slice(-6)}`;
+        invoiceData.orderNumber = `GENIE-${Date.now().toString().slice(-6)}`;
       }
 
       const invoice = await InvoiceModel.create(invoiceData);
@@ -1295,8 +1295,8 @@ export class CatalogueController {
         // Seed realistic starter customer tax invoices so admin immediately sees historical data
         const sampleInvoices = [
           {
-            invoiceNumber: 'REV-INV-849201',
-            orderNumber: 'REV-982142',
+            invoiceNumber: 'GENIE-INV-849201',
+            orderNumber: 'GENIE-982142',
             customerName: 'Aarav Sharma',
             customerPhone: '+91 98450 12345',
             customerEmail: 'aarav.sharma@gmail.com',
@@ -1315,8 +1315,8 @@ export class CatalogueController {
             orderDate: new Date(Date.now() - 3600000 * 4),
           },
           {
-            invoiceNumber: 'REV-INV-732915',
-            orderNumber: 'REV-610492',
+            invoiceNumber: 'GENIE-INV-732915',
+            orderNumber: 'GENIE-610492',
             customerName: 'Priya Sundaram',
             customerPhone: '+91 99620 67890',
             customerEmail: 'priya.sundaram@outlook.com',
@@ -1335,8 +1335,8 @@ export class CatalogueController {
             orderDate: new Date(Date.now() - 3600000 * 24),
           },
           {
-            invoiceNumber: 'REV-INV-619482',
-            orderNumber: 'REV-452109',
+            invoiceNumber: 'GENIE-INV-619482',
+            orderNumber: 'GENIE-452109',
             customerName: 'Vikram Joshi',
             customerPhone: '+91 97110 54321',
             customerEmail: 'vikram.joshi@techcorp.in',
@@ -1357,6 +1357,19 @@ export class CatalogueController {
         ];
         invoices = await InvoiceModel.insertMany(sampleInvoices);
       }
+
+      const normalizedInvoices = invoices.map((doc: any) => {
+        const item = doc.toObject ? doc.toObject() : doc;
+        if (item.invoiceNumber && /^REV-/i.test(item.invoiceNumber)) {
+          item.invoiceNumber = item.invoiceNumber.replace(/^REV-/i, 'GENIE-');
+        }
+        if (item.orderNumber && /^REV-/i.test(item.orderNumber)) {
+          item.orderNumber = item.orderNumber.replace(/^REV-/i, 'GENIE-');
+        }
+        return item;
+      });
+
+      res.status(200).json({ success: true, data: normalizedInvoices });
 
       res.status(200).json({ success: true, count: invoices.length, data: invoices });
     } catch (err) {

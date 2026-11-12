@@ -57,6 +57,22 @@ const UserSchema = new mongoose_1.Schema({
     authProvider: { type: String, default: 'local' },
     googleId: { type: String, sparse: true, index: true },
     refreshTokenHash: { type: String, select: false },
+    sessions: {
+        type: [
+            {
+                _id: false,
+                sid: { type: String, required: true },
+                hash: { type: String, required: true },
+                prevHash: { type: String },
+                rotatedAt: { type: Date },
+                createdAt: { type: Date, default: Date.now },
+                lastUsedAt: { type: Date, default: Date.now },
+                userAgent: { type: String },
+            },
+        ],
+        select: false,
+        default: undefined,
+    },
 }, { timestamps: true });
 exports.UserModel = mongoose_1.default.model('User', UserSchema);
 //# sourceMappingURL=User.js.map

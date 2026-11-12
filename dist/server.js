@@ -10,6 +10,8 @@ const AdminUser_js_1 = require("./infrastructure/database/models/AdminUser.js");
 const seed_js_1 = require("./infrastructure/database/seeds/seed.js");
 const geoSeed_js_1 = require("./infrastructure/database/seeds/geoSeed.js");
 const employeeSeed_js_1 = require("./infrastructure/database/seeds/employeeSeed.js");
+const BuybackRequest_js_1 = require("./infrastructure/database/models/BuybackRequest.js");
+const Invoice_js_1 = require("./infrastructure/database/models/Invoice.js");
 async function bootstrap() {
     try {
         console.log('[REVOO Server] Initializing platform backend...');
@@ -29,6 +31,29 @@ async function bootstrap() {
             await (0, geoSeed_js_1.seedGeoDataIfNeeded)();
             // Ensure Collection Partners & Employees are seeded across Tamil Nadu
             await (0, employeeSeed_js_1.seedEmployeesIfNeeded)();
+            // Automatically migrate legacy REV- prefixes in existing database records to GENIE-
+            try {
+                const legacyRequests = await BuybackRequest_js_1.BuybackRequestModel.find({ requestNumber: { $regex: '^REV-' } });
+                for (const req of legacyRequests) {
+                    req.requestNumber = req.requestNumber.replace(/^REV-/i, 'GENIE-');
+                    await req.save();
+                }
+                const legacyInvoices = await Invoice_js_1.InvoiceModel.find({
+                    $or: [{ invoiceNumber: { $regex: '^REV-' } }, { orderNumber: { $regex: '^REV-' } }],
+                });
+                for (const inv of legacyInvoices) {
+                    if (inv.invoiceNumber && /^REV-/i.test(inv.invoiceNumber)) {
+                        inv.invoiceNumber = inv.invoiceNumber.replace(/^REV-/i, 'GENIE-');
+                    }
+                    if (inv.orderNumber && /^REV-/i.test(inv.orderNumber)) {
+                        inv.orderNumber = inv.orderNumber.replace(/^REV-/i, 'GENIE-');
+                    }
+                    await inv.save();
+                }
+            }
+            catch (migErr) {
+                console.warn('[Genie Server] Prefix migration note:', migErr);
+            }
         }
         catch (seedErr) {
             console.error('[REVOO Server] Error verifying/seeding database:', seedErr);

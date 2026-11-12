@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const tokenService_js_1 = require("../../infrastructure/security/tokenService.js");
 const GoogleAuthService_js_1 = require("../../infrastructure/security/GoogleAuthService.js");
+const CustomerSessionService_js_1 = require("../../infrastructure/security/CustomerSessionService.js");
 const User_js_1 = require("../../infrastructure/database/models/User.js");
 const AdminUser_js_1 = require("../../infrastructure/database/models/AdminUser.js");
 const OtpRecord_js_1 = require("../../infrastructure/database/models/OtpRecord.js");
@@ -10,15 +11,24 @@ const BuybackRequest_js_1 = require("../../infrastructure/database/models/Buybac
 const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
 const types_js_1 = require("../../shared/types.js");
 const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
+const index_js_1 = require("../../config/index.js");
+const contact_js_1 = require("../../shared/contact.js");
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 class AuthController {
     static async requestCustomerOtp(req, res, next) {
         try {
-            const { channel, fullName } = req.body;
+            const { channel } = req.body;
             const rawDest = req.body.destination || req.body.phone || req.body.email;
-            if (!rawDest) {
+            if (channel !== 'EMAIL' && channel !== 'WHATSAPP') {
+                return next(new types_js_1.AppError('Unsupported verification channel.', 400));
+            }
+            if (!rawDest || typeof rawDest !== 'string') {
                 return next(new types_js_1.AppError('Phone number or email destination is required.', 400));
             }
             const normalizedDest = channel === 'EMAIL' ? rawDest.toLowerCase().trim() : rawDest.trim();
+            if (channel === 'EMAIL' && !EMAIL_PATTERN.test(normalizedDest)) {
+                return next(new types_js_1.AppError('Please enter a valid email address.', 400));
+            }
             // Check recent OTP request to throttle resends (60s cooldown)
             const existingOtp = await OtpRecord_js_1.OtpRecordModel.findOne({
                 destination: normalizedDest,
@@ -35,7 +45,7 @@ class AuthController {
             const otpHash = tokenService_js_1.TokenService.hashOtp(otp);
             const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
             const resendAvailableAt = new Date(Date.now() + 60 * 1000); // 60 seconds
-            await OtpRecord_js_1.OtpRecordModel.create({
+            const otpRecord = await OtpRecord_js_1.OtpRecordModel.create({
                 destination: normalizedDest,
                 channel,
                 otpHash,
@@ -45,15 +55,14 @@ class AuthController {
                 resendAvailableAt,
                 isUsed: false,
             });
-            // Dispatch through NotificationService
-            const dispatchResult = await NotificationService_js_1.NotificationService.sendOtp(normalizedDest, channel, otp);
-            // Upsert pending user if not found
-            if (channel === 'EMAIL') {
-                await User_js_1.UserModel.findOneAndUpdate({ email: normalizedDest }, { $setOnInsert: { email: normalizedDest, fullName, status: types_js_1.UserStatus.ACTIVE } }, { upsert: true });
+            // Dispatch through NotificationService (nodemailer for EMAIL)
+            const dispatchResult = await NotificationService_js_1.NotificationService.sendOtp(normalizedDest, channel, otp, 5);
+            if (!dispatchResult.success) {
+                // Don't leave an undeliverable code blocking the resend cooldown
+                await OtpRecord_js_1.OtpRecordModel.deleteOne({ _id: otpRecord._id });
+                return next(new types_js_1.AppError(dispatchResult.message, 503));
             }
-            else {
-                await User_js_1.UserModel.findOneAndUpdate({ phone: normalizedDest }, { $setOnInsert: { phone: normalizedDest, fullName, status: types_js_1.UserStatus.ACTIVE } }, { upsert: true });
-            }
+            // The account itself is created only after the code is verified (see verifyCustomerOtp).
             res.status(200).json({
                 success: true,
                 message: dispatchResult.message,
@@ -62,7 +71,8 @@ class AuthController {
                     channel,
                     resendCooldownSeconds: 60,
                     expiresInSeconds: 300,
-                    ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {}),
+                    // Only expose the code in development when it could not actually be delivered
+                    ...(!index_js_1.config.isProduction && !dispatchResult.delivered ? { devOtp: otp } : {}),
                 },
             });
         }
@@ -116,14 +126,8 @@ class AuthController {
                 }
             }
             // Generate tokens
-            const tokenPair = tokenService_js_1.TokenService.generateCustomerTokenPair({
-                userId: user._id.toString(),
-                phone: user.phone,
-                email: user.email,
-                type: 'CUSTOMER',
-            });
-            user.refreshTokenHash = tokenPair.refreshTokenHash;
             await user.save();
+            const tokenPair = await CustomerSessionService_js_1.CustomerSessionService.issue(user, req.get('user-agent'));
             res.status(200).json({
                 success: true,
                 message: 'Authentication successful.',
@@ -172,14 +176,8 @@ class AuthController {
             if (user.status !== types_js_1.UserStatus.ACTIVE) {
                 return next(new types_js_1.AppError('Your account has been deactivated. Please contact support.', 403));
             }
-            const tokenPair = tokenService_js_1.TokenService.generateCustomerTokenPair({
-                userId: user._id.toString(),
-                phone: user.phone,
-                email: user.email,
-                type: 'CUSTOMER',
-            });
-            user.refreshTokenHash = tokenPair.refreshTokenHash;
             await user.save();
+            const tokenPair = await CustomerSessionService_js_1.CustomerSessionService.issue(user, req.get('user-agent'));
             res.status(200).json({
                 success: true,
                 message: 'Sign in successful.',
@@ -261,14 +259,8 @@ class AuthController {
                     referredBy: referrerUser?.referralCode,
                 });
             }
-            const tokenPair = tokenService_js_1.TokenService.generateCustomerTokenPair({
-                userId: user._id.toString(),
-                phone: user.phone,
-                email: user.email,
-                type: 'CUSTOMER',
-            });
-            user.refreshTokenHash = tokenPair.refreshTokenHash;
             await user.save();
+            const tokenPair = await CustomerSessionService_js_1.CustomerSessionService.issue(user, req.get('user-agent'));
             res.status(201).json({
                 success: true,
                 message: 'Account created successfully.',
@@ -295,82 +287,29 @@ class AuthController {
     static async customerGoogleAuth(req, res, next) {
         try {
             const { idToken, code, accessToken, referralCode } = req.body;
-            let email;
-            let fullName;
-            let googleId;
-            let avatarUrl;
+            // Identity must always be proven by Google. A client-supplied email alone is never trusted.
+            let googleUser;
             if (idToken) {
-                // Authenticate via cryptographically signed Google ID Token
-                const googleUser = await GoogleAuthService_js_1.GoogleAuthService.verifyGoogleIdToken(idToken);
-                email = googleUser.email;
-                fullName = googleUser.fullName;
-                googleId = googleUser.googleId;
-                avatarUrl = googleUser.avatarUrl;
+                // Cryptographically signed Google ID Token (mobile app, One Tap)
+                googleUser = await GoogleAuthService_js_1.GoogleAuthService.verifyGoogleIdToken(idToken);
             }
             else if (code) {
-                // Authenticate via Google OAuth 2.0 authorization code exchange
-                const googleUser = await GoogleAuthService_js_1.GoogleAuthService.exchangeAuthCode(code);
-                email = googleUser.email;
-                fullName = googleUser.fullName;
-                googleId = googleUser.googleId;
-                avatarUrl = googleUser.avatarUrl;
+                // OAuth 2.0 authorization code exchange
+                googleUser = await GoogleAuthService_js_1.GoogleAuthService.exchangeAuthCode(code);
             }
             else if (accessToken) {
-                // Authenticate via Google OAuth 2.0 access token (from google.accounts.oauth2 token client)
-                try {
-                    const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
-                    if (tokenRes.ok) {
-                        const tokenInfo = await tokenRes.json();
-                        email = tokenInfo.email;
-                        googleId = tokenInfo.sub || tokenInfo.user_id || `g_${Date.now()}`;
-                        fullName = req.body.fullName;
-                        avatarUrl = req.body.avatarUrl;
-                    }
-                    else {
-                        // If tokeninfo fails, check userinfo directly
-                        const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                            headers: { Authorization: `Bearer ${accessToken}` },
-                        });
-                        if (userRes.ok) {
-                            const uInfo = await userRes.json();
-                            email = uInfo.email;
-                            googleId = uInfo.sub || `g_${Date.now()}`;
-                            fullName = uInfo.name || req.body.fullName;
-                            avatarUrl = uInfo.picture || req.body.avatarUrl;
-                        }
-                        else if (req.body.email) {
-                            email = req.body.email.toLowerCase().trim();
-                            googleId = req.body.googleId || `g_${Date.now()}`;
-                            fullName = req.body.fullName;
-                            avatarUrl = req.body.avatarUrl;
-                        }
-                        else {
-                            return next(new types_js_1.AppError('Invalid Google access token.', 401));
-                        }
-                    }
-                }
-                catch {
-                    if (req.body.email) {
-                        email = req.body.email.toLowerCase().trim();
-                        googleId = req.body.googleId || `g_${Date.now()}`;
-                        fullName = req.body.fullName;
-                        avatarUrl = req.body.avatarUrl;
-                    }
-                    else {
-                        return next(new types_js_1.AppError('Unable to verify Google access token.', 401));
-                    }
-                }
-            }
-            else if (req.body.email) {
-                // Email provided with verified frontend OAuth
-                email = req.body.email.toLowerCase().trim();
-                fullName = req.body.fullName;
-                googleId = req.body.googleId || `g_${Date.now()}`;
-                avatarUrl = req.body.avatarUrl;
+                // OAuth 2.0 access token from the web token client; audience is checked server-side
+                googleUser = await GoogleAuthService_js_1.GoogleAuthService.verifyAccessToken(accessToken);
             }
             else {
                 return next(new types_js_1.AppError('Google ID Token (idToken), authorization code (code), or access token is required for Google Sign-In.', 400));
             }
+            if (!googleUser.isEmailVerified) {
+                return next(new types_js_1.AppError('Your Google account email is not verified.', 401));
+            }
+            const email = googleUser.email;
+            const fullName = googleUser.fullName;
+            const googleId = googleUser.googleId;
             const normalizedEmail = email.toLowerCase().trim();
             let user = await User_js_1.UserModel.findOne({
                 $or: [
@@ -413,14 +352,8 @@ class AuthController {
                 user.isVerified = true;
                 await user.save();
             }
-            const tokenPair = tokenService_js_1.TokenService.generateCustomerTokenPair({
-                userId: user._id.toString(),
-                phone: user.phone,
-                email: user.email,
-                type: 'CUSTOMER',
-            });
-            user.refreshTokenHash = tokenPair.refreshTokenHash;
             await user.save();
+            const tokenPair = await CustomerSessionService_js_1.CustomerSessionService.issue(user, req.get('user-agent'));
             res.status(200).json({
                 success: true,
                 message: 'Google Sign-in successful.',
@@ -448,26 +381,20 @@ class AuthController {
     }
     static async refreshCustomerToken(req, res, next) {
         try {
-            const { refreshToken } = req.body;
-            const decoded = tokenService_js_1.TokenService.verifyRefreshToken(refreshToken);
-            if (decoded.type !== 'CUSTOMER') {
-                return next(new types_js_1.AppError('Invalid refresh token type.', 403));
+            const { refreshToken } = req.body || {};
+            if (!refreshToken || typeof refreshToken !== 'string') {
+                return next(new types_js_1.AppError('Refresh token is required.', 400));
             }
-            const hash = tokenService_js_1.TokenService.hashToken(refreshToken);
-            const user = await User_js_1.UserModel.findOne({ _id: decoded.userId, refreshTokenHash: hash });
-            if (!user) {
-                // Reuse detection / revocation
-                await User_js_1.UserModel.findByIdAndUpdate(decoded.userId, { $unset: { refreshTokenHash: 1 } });
-                return next(new types_js_1.AppError('Invalid or reused refresh token. Please log in again.', 401));
+            let tokenPair;
+            try {
+                tokenPair = await CustomerSessionService_js_1.CustomerSessionService.rotate(refreshToken, req.get('user-agent'));
             }
-            const tokenPair = tokenService_js_1.TokenService.generateCustomerTokenPair({
-                userId: user._id.toString(),
-                phone: user.phone,
-                email: user.email,
-                type: 'CUSTOMER',
-            });
-            user.refreshTokenHash = tokenPair.refreshTokenHash;
-            await user.save();
+            catch {
+                return next(new types_js_1.AppError('Refresh token invalid or expired. Please log in again.', 401));
+            }
+            if (!tokenPair) {
+                return next(new types_js_1.AppError('Your session has ended. Please log in again.', 401));
+            }
             res.status(200).json({
                 success: true,
                 message: 'Token refreshed.',
@@ -478,13 +405,28 @@ class AuthController {
             });
         }
         catch (err) {
-            next(new types_js_1.AppError('Refresh token invalid or expired. Please log in again.', 401));
+            next(err);
         }
     }
+    /**
+     * Ends this device's session. Works with an expired access token: the refresh token in the
+     * body identifies the session. Older clients that only send the access token still clear the
+     * legacy single-session token.
+     */
     static async customerLogout(req, res, next) {
         try {
-            if (req.user?.id) {
-                await User_js_1.UserModel.findByIdAndUpdate(req.user.id, { $unset: { refreshTokenHash: 1 } });
+            await CustomerSessionService_js_1.CustomerSessionService.revoke(req.body?.refreshToken);
+            const authHeader = req.headers.authorization;
+            if (authHeader?.startsWith('Bearer ')) {
+                try {
+                    const decoded = tokenService_js_1.TokenService.verifyAccessToken(authHeader.slice(7));
+                    if (decoded?.type === 'CUSTOMER' && decoded.userId) {
+                        await User_js_1.UserModel.findByIdAndUpdate(decoded.userId, { $unset: { refreshTokenHash: 1 } });
+                    }
+                }
+                catch {
+                    // expired/invalid access token: the refresh-token revoke above is enough
+                }
             }
             res.status(200).json({ success: true, message: 'Logged out successfully.' });
         }
@@ -558,15 +500,50 @@ class AuthController {
     }
     static async updateCustomerProfile(req, res, next) {
         try {
-            const { fullName, address } = req.body;
-            const user = await User_js_1.UserModel.findByIdAndUpdate(req.user?.id, {
-                ...(fullName && { fullName }),
-                ...(address && { address }),
-            }, { new: true });
+            // Customers may edit their name, mobile number and saved address. Email is the login
+            // identity (Google / email OTP) and is intentionally not editable here.
+            const { fullName, phone, address } = req.body;
+            const updates = {};
+            if (fullName !== undefined) {
+                const name = String(fullName).replace(/\s+/g, ' ').trim();
+                if (name.length < 2 || name.length > 60) {
+                    return next(new types_js_1.AppError('Please enter your full name (2 to 60 characters).', 400));
+                }
+                updates.fullName = name;
+            }
+            if (phone !== undefined) {
+                const mobile = (0, contact_js_1.normalizeIndianMobile)(phone);
+                if (!mobile) {
+                    return next(new types_js_1.AppError('Please enter a valid 10-digit Indian mobile number.', 400));
+                }
+                // One mobile number per account, so phone-based sign-in can never land in someone else's account
+                const taken = await User_js_1.UserModel.exists({
+                    _id: { $ne: req.user?.id },
+                    phone: { $in: [mobile, `+91${mobile}`, `91${mobile}`] },
+                });
+                if (taken) {
+                    return next(new types_js_1.AppError('This mobile number is already linked to another Genie account.', 409));
+                }
+                updates.phone = mobile;
+            }
+            if (address && typeof address === 'object')
+                updates.address = address;
+            const user = await User_js_1.UserModel.findByIdAndUpdate(req.user?.id, { $set: updates }, { new: true, runValidators: true });
+            if (!user)
+                return next(new types_js_1.AppError('User not found', 404));
             res.status(200).json({
                 success: true,
                 message: 'Profile updated successfully.',
-                data: user,
+                data: {
+                    id: user._id,
+                    fullName: user.fullName,
+                    phone: user.phone,
+                    email: user.email,
+                    address: user.address,
+                    status: user.status,
+                    referralCode: user.referralCode,
+                    createdAt: user.createdAt,
+                },
             });
         }
         catch (err) {
@@ -579,8 +556,10 @@ class AuthController {
             const { email, password } = req.body;
             const lowerEmail = (email || '').toLowerCase().trim();
             let admin = await AdminUser_js_1.AdminUserModel.findOne({ email: lowerEmail }).select('+passwordHash');
-            if (!admin && (lowerEmail.endsWith('@genie.in') || lowerEmail === 'admin@genie.in')) {
-                admin = await AdminUser_js_1.AdminUserModel.findOne({ email: lowerEmail.replace('@genie.in', '@revoo.com') }).select('+passwordHash');
+            if (!admin && (lowerEmail.endsWith('@genie.com') || lowerEmail.endsWith('@genie.in'))) {
+                admin = await AdminUser_js_1.AdminUserModel.findOne({
+                    email: lowerEmail.replace('@genie.com', '@revoo.com').replace('@genie.in', '@revoo.com'),
+                }).select('+passwordHash');
             }
             if (!admin || !admin.isActive) {
                 return next(new types_js_1.AppError('Invalid email or password credentials.', 401));

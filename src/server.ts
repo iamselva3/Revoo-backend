@@ -5,6 +5,8 @@ import { AdminUserModel } from './infrastructure/database/models/AdminUser.js';
 import { seedDatabase } from './infrastructure/database/seeds/seed.js';
 import { seedGeoDataIfNeeded } from './infrastructure/database/seeds/geoSeed.js';
 import { seedEmployeesIfNeeded } from './infrastructure/database/seeds/employeeSeed.js';
+import { BuybackRequestModel } from './infrastructure/database/models/BuybackRequest.js';
+import { InvoiceModel } from './infrastructure/database/models/Invoice.js';
 
 async function bootstrap() {
   try {
@@ -27,6 +29,29 @@ async function bootstrap() {
 
       // Ensure Collection Partners & Employees are seeded across Tamil Nadu
       await seedEmployeesIfNeeded();
+
+      // Automatically migrate legacy REV- prefixes in existing database records to GENIE-
+      try {
+        const legacyRequests = await BuybackRequestModel.find({ requestNumber: { $regex: '^REV-' } });
+        for (const req of legacyRequests) {
+          req.requestNumber = req.requestNumber.replace(/^REV-/i, 'GENIE-');
+          await req.save();
+        }
+        const legacyInvoices = await InvoiceModel.find({
+          $or: [{ invoiceNumber: { $regex: '^REV-' } }, { orderNumber: { $regex: '^REV-' } }],
+        });
+        for (const inv of legacyInvoices) {
+          if (inv.invoiceNumber && /^REV-/i.test(inv.invoiceNumber)) {
+            inv.invoiceNumber = inv.invoiceNumber.replace(/^REV-/i, 'GENIE-');
+          }
+          if (inv.orderNumber && /^REV-/i.test(inv.orderNumber)) {
+            inv.orderNumber = inv.orderNumber.replace(/^REV-/i, 'GENIE-');
+          }
+          await inv.save();
+        }
+      } catch (migErr) {
+        console.warn('[Genie Server] Prefix migration note:', migErr);
+      }
     } catch (seedErr) {
       console.error('[REVOO Server] Error verifying/seeding database:', seedErr);
     }

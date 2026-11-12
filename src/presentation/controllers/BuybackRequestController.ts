@@ -68,6 +68,7 @@ const toCustomerRequestView = (obj: any) => {
 
   const view: any = {
     ...obj,
+    requestNumber: obj.requestNumber ? String(obj.requestNumber).replace(/^REV-/i, 'GENIE-') : obj.requestNumber,
     deviceDetails: obj.deviceDetails
       ? { ...obj.deviceDetails, modelId: populatedModel ? populatedModel._id : modelRef }
       : obj.deviceDetails,
@@ -465,8 +466,10 @@ export class BuybackRequestController {
       if (status) filter.status = status;
       if (brandId) filter['deviceDetails.brandId'] = brandId;
       if (search) {
+        const cleanSearch = String(search).replace(/^(GENIE|REV)-/i, '');
         filter.$or = [
           { requestNumber: { $regex: search, $options: 'i' } },
+          { requestNumber: { $regex: cleanSearch, $options: 'i' } },
           { 'customerDetails.fullName': { $regex: search, $options: 'i' } },
           { 'customerDetails.phone': { $regex: search, $options: 'i' } },
           { 'deviceDetails.modelName': { $regex: search, $options: 'i' } },
@@ -482,9 +485,17 @@ export class BuybackRequestController {
         BuybackRequestModel.countDocuments(filter),
       ]);
 
+      const normalizedRequests = requests.map((doc: any) => {
+        const item = doc.toObject ? doc.toObject() : doc;
+        if (item.requestNumber && /^REV-/i.test(item.requestNumber)) {
+          item.requestNumber = item.requestNumber.replace(/^REV-/i, 'GENIE-');
+        }
+        return item;
+      });
+
       res.status(200).json({
         success: true,
-        data: requests,
+        data: normalizedRequests,
         meta: {
           total,
           page: pageNum,
@@ -509,7 +520,12 @@ export class BuybackRequestController {
 
       if (!request) return next(new AppError('Request not found', 404));
 
-      res.status(200).json({ success: true, data: request });
+      const item: any = request.toObject ? request.toObject() : request;
+      if (item.requestNumber && /^REV-/i.test(item.requestNumber)) {
+        item.requestNumber = item.requestNumber.replace(/^REV-/i, 'GENIE-');
+      }
+
+      res.status(200).json({ success: true, data: item });
     } catch (err) {
       next(err);
     }

@@ -12,7 +12,8 @@ router.post('/customer/login-password', rateLimiter_middleware_js_1.authLimiter,
 router.post('/customer/signup', rateLimiter_middleware_js_1.authLimiter, AuthController_js_1.AuthController.customerSignup);
 router.post('/customer/google', rateLimiter_middleware_js_1.authLimiter, AuthController_js_1.AuthController.customerGoogleAuth);
 router.post('/customer/refresh-token', AuthController_js_1.AuthController.refreshCustomerToken);
-router.post('/customer/logout', auth_middleware_js_1.authenticateCustomer, AuthController_js_1.AuthController.customerLogout);
+// No access-token guard: logout must work after the access token has expired
+router.post('/customer/logout', AuthController_js_1.AuthController.customerLogout);
 router.get('/customer/profile', auth_middleware_js_1.authenticateCustomer, AuthController_js_1.AuthController.getCustomerProfile);
 router.put('/customer/profile', auth_middleware_js_1.authenticateCustomer, AuthController_js_1.AuthController.updateCustomerProfile);
 router.get('/customer/referral', auth_middleware_js_1.authenticateCustomer, AuthController_js_1.AuthController.getCustomerReferral);

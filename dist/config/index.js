@@ -32,13 +32,24 @@ exports.config = {
         },
     },
     email: {
-        smtpHost: process.env.SMTP_HOST || 'sandbox.smtp.mailtrap.io',
-        smtpPort: parseInt(process.env.SMTP_PORT || '2525', 10),
+        // Use SMTP_SERVICE=gmail (with an App Password) or an explicit SMTP_HOST/SMTP_PORT.
+        smtpService: process.env.SMTP_SERVICE || '',
+        smtpHost: process.env.SMTP_HOST || '',
+        smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+        smtpSecure: process.env.SMTP_SECURE
+            ? process.env.SMTP_SECURE === 'true'
+            : parseInt(process.env.SMTP_PORT || '587', 10) === 465,
         smtpUser: process.env.SMTP_USER || '',
         smtpPass: process.env.SMTP_PASS || '',
-        from: process.env.EMAIL_FROM || 'support@revoo.com',
+        from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'support@genie.in',
+        fromName: process.env.EMAIL_FROM_NAME || 'Genie',
     },
     google: {
+        // Comma-separated extra OAuth client IDs whose Google tokens we accept (e.g. web + Android).
+        allowedClientIds: (process.env.GOOGLE_ALLOWED_CLIENT_IDS || '')
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean),
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
         redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/v1/auth/customer/google/callback',
