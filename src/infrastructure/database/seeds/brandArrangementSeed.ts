@@ -2,6 +2,15 @@ import { BrandModel } from '../models/Brand.js';
 import { SmartphoneModel } from '../models/SmartphoneModel.js';
 import { StorageVariantModel } from '../models/StorageVariant.js';
 import { PricingRuleModel } from '../models/PricingRule.js';
+import phoneCatalog from './data/phoneCatalog.json';
+
+// Brands whose full model list now comes from the phone catalogue (phoneCatalogSeed); their
+// starter models below are superseded and are not created, to avoid duplicates with retail prices.
+const CATALOGUE_BRANDS = new Set(
+  ((phoneCatalog as any).brands as Array<{ brandSlug: string; models: unknown[] }>)
+    .filter((b) => b.models.length > 0)
+    .map((b) => b.brandSlug)
+);
 
 export interface PriorityBrandDef {
   name: string;
@@ -757,6 +766,7 @@ export async function seedBrandArrangementIfNeeded(): Promise<void> {
 
     // 3. Ensure models exist for new brands
     for (const mData of NEW_MODELS_DATA) {
+      if (CATALOGUE_BRANDS.has(mData.brandSlug)) continue;
       const brand = brandMap.get(mData.brandSlug) || (await BrandModel.findOne({ slug: mData.brandSlug }));
       if (!brand) continue;
 

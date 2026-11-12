@@ -11,6 +11,7 @@
     "start": "node dist/server.js",
     "seed": "tsx src/infrastructure/database/seeds/seed.ts",
     "seed:prices": "tsx scripts/seed-prices.ts",
+    "seed:catalog": "tsx scripts/seed-phone-catalog.ts",
     "test": "jest --runInBand --detectOpenHandles"
   },
   "dependencies": {

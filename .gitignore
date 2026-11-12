@@ -26,3 +26,7 @@ coverage/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Local database backups written by scripts (never commit)
+backups/
+.tmp-demo/

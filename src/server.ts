@@ -7,6 +7,7 @@ import { seedGeoDataIfNeeded } from './infrastructure/database/seeds/geoSeed.js'
 import { seedEmployeesIfNeeded } from './infrastructure/database/seeds/employeeSeed.js';
 import { seedBrandArrangementIfNeeded } from './infrastructure/database/seeds/brandArrangementSeed.js';
 import { seedAppleModelsArrangementIfNeeded } from './infrastructure/database/seeds/appleModelsSeed.js';
+import { runPhoneCatalogSeedIfNeeded } from './infrastructure/database/seeds/phoneCatalogSeed.js';
 import { BuybackRequestModel } from './infrastructure/database/models/BuybackRequest.js';
 import { InvoiceModel } from './infrastructure/database/models/Invoice.js';
 
@@ -68,6 +69,8 @@ async function bootstrap() {
       console.log(`[REVOO Server] Running in ${config.nodeEnv} mode on port ${config.port}`);
       console.log(`[REVOO Server] API base URL: http://localhost:${config.port}/api/v1`);
       console.log(`[REVOO Server] Health check: http://localhost:${config.port}/api/v1/health`);
+      // Large catalogue seed runs after the server is accepting traffic (once per data version)
+      void runPhoneCatalogSeedIfNeeded();
     });
 
     const shutdown = async (signal: string) => {
