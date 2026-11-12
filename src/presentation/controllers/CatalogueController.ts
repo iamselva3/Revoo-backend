@@ -1065,7 +1065,7 @@ export class CatalogueController {
   // --- Banner Management (Admin Editable) ---
   public static async getBanners(req: Request, res: Response, next: NextFunction) {
     try {
-      let banners = await BannerModel.find({ isActive: true }).sort({ displayOrder: 1, createdAt: -1 });
+      let banners = await BannerModel.find({ isActive: true, isPopupModal: { $ne: true } }).sort({ displayOrder: 1, createdAt: -1 });
 
       if (banners.length === 0) {
         const defaultBanners = [

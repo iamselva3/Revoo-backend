@@ -598,8 +598,10 @@ export class AuthController {
       const { email, password } = req.body;
       const lowerEmail = (email || '').toLowerCase().trim();
       let admin: any = await AdminUserModel.findOne({ email: lowerEmail }).select('+passwordHash');
-      if (!admin && (lowerEmail.endsWith('@genie.in') || lowerEmail === 'admin@genie.in')) {
-        admin = await AdminUserModel.findOne({ email: lowerEmail.replace('@genie.in', '@revoo.com') }).select('+passwordHash');
+      if (!admin && (lowerEmail.endsWith('@genie.com') || lowerEmail.endsWith('@genie.in'))) {
+        admin = await AdminUserModel.findOne({
+          email: lowerEmail.replace('@genie.com', '@revoo.com').replace('@genie.in', '@revoo.com'),
+        }).select('+passwordHash');
       }
 
       if (!admin || !admin.isActive) {
