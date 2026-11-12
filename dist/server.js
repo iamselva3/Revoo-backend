@@ -11,6 +11,7 @@ const seed_js_1 = require("./infrastructure/database/seeds/seed.js");
 const geoSeed_js_1 = require("./infrastructure/database/seeds/geoSeed.js");
 const employeeSeed_js_1 = require("./infrastructure/database/seeds/employeeSeed.js");
 const brandArrangementSeed_js_1 = require("./infrastructure/database/seeds/brandArrangementSeed.js");
+const appleModelsSeed_js_1 = require("./infrastructure/database/seeds/appleModelsSeed.js");
 const BuybackRequest_js_1 = require("./infrastructure/database/models/BuybackRequest.js");
 const Invoice_js_1 = require("./infrastructure/database/models/Invoice.js");
 async function bootstrap() {
@@ -34,6 +35,8 @@ async function bootstrap() {
             await (0, employeeSeed_js_1.seedEmployeesIfNeeded)();
             // Ensure exact 22 phone brands arrangement & models
             await (0, brandArrangementSeed_js_1.seedBrandArrangementIfNeeded)();
+            // Ensure exact 37 Apple phone models arrangement & variants
+            await (0, appleModelsSeed_js_1.seedAppleModelsArrangementIfNeeded)();
             // Automatically migrate legacy REV- prefixes in existing database records to GENIE-
             try {
                 const legacyRequests = await BuybackRequest_js_1.BuybackRequestModel.find({ requestNumber: { $regex: '^REV-' } });

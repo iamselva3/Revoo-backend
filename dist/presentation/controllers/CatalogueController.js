@@ -56,10 +56,10 @@ class CatalogueController {
             if (category) {
                 const catStr = category.toLowerCase();
                 if (catStr === 'mobile' || catStr === 'phones' || catStr === 'phone') {
-                    filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|air|pro 1[46])/i };
+                    filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|macbook air|macbook pro)/i };
                 }
                 else if (catStr === 'laptops' || catStr === 'laptop' || catStr === 'macbook' || catStr === 'macbooks') {
-                    filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift|air|pro 1[46])/i };
+                    filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift)/i };
                 }
                 else if (catStr === 'tablets' || catStr === 'tablet' || catStr === 'ipad' || catStr === 'ipads') {
                     filterQuery.name = { $regex: /(ipad|tab|pad)/i };
@@ -68,7 +68,7 @@ class CatalogueController {
                     filterQuery.name = { $regex: /(tv|bravia|oled|qled|crystal|uhd)/i };
                 }
             }
-            const models = await SmartphoneModel_js_1.SmartphoneModel.find(filterQuery).sort({ releaseYear: -1, name: 1 });
+            const models = await SmartphoneModel_js_1.SmartphoneModel.find(filterQuery).sort({ displayOrder: 1, releaseYear: -1, name: 1 });
             const ranges = await DevicePriceResolver_js_1.DevicePriceResolver.priceRanges(models);
             // Each model carries its "Get up to" price (best variant, top condition)
             const data = models.map((m) => {
@@ -365,7 +365,7 @@ class CatalogueController {
                 filter.isArchived = false;
             const models = await SmartphoneModel_js_1.SmartphoneModel.find(filter)
                 .populate('brandId', 'name slug logoUrl')
-                .sort({ releaseYear: -1, name: 1 });
+                .sort({ displayOrder: 1, releaseYear: -1, name: 1 });
             const modelIds = models.map((m) => m._id);
             const variants = await StorageVariant_js_1.StorageVariantModel.find({ modelId: { $in: modelIds } });
             const variantMap = new Map();

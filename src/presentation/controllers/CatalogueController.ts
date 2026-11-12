@@ -54,9 +54,9 @@ export class CatalogueController {
       if (category) {
         const catStr = (category as string).toLowerCase();
         if (catStr === 'mobile' || catStr === 'phones' || catStr === 'phone') {
-          filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|air|pro 1[46])/i };
+          filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|macbook air|macbook pro)/i };
         } else if (catStr === 'laptops' || catStr === 'laptop' || catStr === 'macbook' || catStr === 'macbooks') {
-          filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift|air|pro 1[46])/i };
+          filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift)/i };
         } else if (catStr === 'tablets' || catStr === 'tablet' || catStr === 'ipad' || catStr === 'ipads') {
           filterQuery.name = { $regex: /(ipad|tab|pad)/i };
         } else if (catStr === 'tv' || catStr === 'tvs' || catStr === 'smart_tv') {
@@ -64,7 +64,7 @@ export class CatalogueController {
         }
       }
 
-      const models = await SmartphoneModel.find(filterQuery).sort({ releaseYear: -1, name: 1 });
+      const models = await SmartphoneModel.find(filterQuery).sort({ displayOrder: 1, releaseYear: -1, name: 1 });
       const ranges = await DevicePriceResolver.priceRanges(models);
 
       // Each model carries its "Get up to" price (best variant, top condition)
@@ -420,7 +420,7 @@ export class CatalogueController {
 
       const models = await SmartphoneModel.find(filter)
         .populate('brandId', 'name slug logoUrl')
-        .sort({ releaseYear: -1, name: 1 });
+        .sort({ displayOrder: 1, releaseYear: -1, name: 1 });
 
       const modelIds = models.map((m) => m._id);
       const variants = await StorageVariantModel.find({ modelId: { $in: modelIds } });

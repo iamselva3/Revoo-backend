@@ -7,6 +7,7 @@ export interface ISmartphoneModelDocument extends Document {
   releaseYear: number;
   imageUrl?: string;
   basePrice: number;
+  displayOrder?: number;
   isPublished: boolean;
   isArchived: boolean;
   createdAt: Date;
@@ -21,12 +22,14 @@ const SmartphoneModelSchema = new Schema<ISmartphoneModelDocument>(
     releaseYear: { type: Number, default: 2024 },
     imageUrl: { type: String },
     basePrice: { type: Number, required: true, min: 0 },
+    displayOrder: { type: Number, default: 9999, index: true },
     isPublished: { type: Boolean, default: true, index: true },
     isArchived: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );
 
+SmartphoneModelSchema.index({ brandId: 1, displayOrder: 1, releaseYear: -1 });
 SmartphoneModelSchema.index({ brandId: 1, isPublished: 1, isArchived: 1 });
 
 export const SmartphoneModel = mongoose.model<ISmartphoneModelDocument>('SmartphoneModel', SmartphoneModelSchema);

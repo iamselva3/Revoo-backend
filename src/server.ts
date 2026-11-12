@@ -6,6 +6,7 @@ import { seedDatabase } from './infrastructure/database/seeds/seed.js';
 import { seedGeoDataIfNeeded } from './infrastructure/database/seeds/geoSeed.js';
 import { seedEmployeesIfNeeded } from './infrastructure/database/seeds/employeeSeed.js';
 import { seedBrandArrangementIfNeeded } from './infrastructure/database/seeds/brandArrangementSeed.js';
+import { seedAppleModelsArrangementIfNeeded } from './infrastructure/database/seeds/appleModelsSeed.js';
 import { BuybackRequestModel } from './infrastructure/database/models/BuybackRequest.js';
 import { InvoiceModel } from './infrastructure/database/models/Invoice.js';
 
@@ -33,6 +34,9 @@ async function bootstrap() {
 
       // Ensure exact 22 phone brands arrangement & models
       await seedBrandArrangementIfNeeded();
+
+      // Ensure exact 37 Apple phone models arrangement & variants
+      await seedAppleModelsArrangementIfNeeded();
 
       // Automatically migrate legacy REV- prefixes in existing database records to GENIE-
       try {
