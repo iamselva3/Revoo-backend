@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NEW_MODELS_DATA = exports.EXACT_22_BRANDS = void 0;
 exports.seedBrandArrangementIfNeeded = seedBrandArrangementIfNeeded;
@@ -6,6 +9,12 @@ const Brand_js_1 = require("../models/Brand.js");
 const SmartphoneModel_js_1 = require("../models/SmartphoneModel.js");
 const StorageVariant_js_1 = require("../models/StorageVariant.js");
 const PricingRule_js_1 = require("../models/PricingRule.js");
+const phoneCatalog_json_1 = __importDefault(require("./data/phoneCatalog.json"));
+// Brands whose full model list now comes from the phone catalogue (phoneCatalogSeed); their
+// starter models below are superseded and are not created, to avoid duplicates with retail prices.
+const CATALOGUE_BRANDS = new Set(phoneCatalog_json_1.default.brands
+    .filter((b) => b.models.length > 0)
+    .map((b) => b.brandSlug));
 exports.EXACT_22_BRANDS = [
     { name: 'Apple', slug: 'apple', logoUrl: '/uploads/brands/apple.png', displayOrder: 1 },
     { name: 'Samsung', slug: 'samsung', logoUrl: '/uploads/brands/samsung.png', displayOrder: 2 },
@@ -726,6 +735,8 @@ async function seedBrandArrangementIfNeeded() {
         console.log(`[Brand Seeder] Arranged ${exports.EXACT_22_BRANDS.length} priority brands and ${extraBrands.length} additional brands.`);
         // 3. Ensure models exist for new brands
         for (const mData of exports.NEW_MODELS_DATA) {
+            if (CATALOGUE_BRANDS.has(mData.brandSlug))
+                continue;
             const brand = brandMap.get(mData.brandSlug) || (await Brand_js_1.BrandModel.findOne({ slug: mData.brandSlug }));
             if (!brand)
                 continue;

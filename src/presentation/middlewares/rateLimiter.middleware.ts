@@ -1,16 +1,6 @@
 import rateLimit from 'express-rate-limit';
 
-export const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // max 300 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
-  message: {
-    success: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes.',
-  },
-});
+// Only abuse-prone auth routes are rate limited; there is deliberately no app-wide limiter.
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

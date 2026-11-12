@@ -12,6 +12,7 @@ const geoSeed_js_1 = require("./infrastructure/database/seeds/geoSeed.js");
 const employeeSeed_js_1 = require("./infrastructure/database/seeds/employeeSeed.js");
 const brandArrangementSeed_js_1 = require("./infrastructure/database/seeds/brandArrangementSeed.js");
 const appleModelsSeed_js_1 = require("./infrastructure/database/seeds/appleModelsSeed.js");
+const phoneCatalogSeed_js_1 = require("./infrastructure/database/seeds/phoneCatalogSeed.js");
 const BuybackRequest_js_1 = require("./infrastructure/database/models/BuybackRequest.js");
 const Invoice_js_1 = require("./infrastructure/database/models/Invoice.js");
 async function bootstrap() {
@@ -68,6 +69,8 @@ async function bootstrap() {
             console.log(`[REVOO Server] Running in ${index_js_1.config.nodeEnv} mode on port ${index_js_1.config.port}`);
             console.log(`[REVOO Server] API base URL: http://localhost:${index_js_1.config.port}/api/v1`);
             console.log(`[REVOO Server] Health check: http://localhost:${index_js_1.config.port}/api/v1/health`);
+            // Large catalogue seed runs after the server is accepting traffic (once per data version)
+            void (0, phoneCatalogSeed_js_1.runPhoneCatalogSeedIfNeeded)();
         });
         const shutdown = async (signal) => {
             console.log(`\n[REVOO Server] Received ${signal}. Gracefully shutting down...`);

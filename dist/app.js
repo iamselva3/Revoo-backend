@@ -11,7 +11,6 @@ const path_1 = __importDefault(require("path"));
 const index_js_1 = require("./config/index.js");
 const index_js_2 = __importDefault(require("./presentation/routes/index.js"));
 const errorHandler_middleware_js_1 = require("./presentation/middlewares/errorHandler.middleware.js");
-const rateLimiter_middleware_js_1 = require("./presentation/middlewares/rateLimiter.middleware.js");
 const types_js_1 = require("./shared/types.js");
 const app = (0, express_1.default)();
 // Trust reverse proxies (Render, Cloudflare, load balancers) for accurate client IP & rate limiting
@@ -35,7 +34,7 @@ app.use((0, cors_1.default)({
     },
     credentials: true,
 }));
-// UptimeRobot & Service Health Check (exempt from rate limits for 24/7 monitoring)
+// UptimeRobot & Service Health Check
 app.get(['/health', '/'], (req, res) => {
     res.status(200).json({
         status: 'HEALTHY',
@@ -45,8 +44,9 @@ app.get(['/health', '/'], (req, res) => {
         environment: index_js_1.config.nodeEnv,
     });
 });
-// Rate limiting
-app.use(rateLimiter_middleware_js_1.globalLimiter);
+// No blanket per-IP request limit: customers browsing the catalogue and staff using the admin
+// portal (many list + image requests) were being locked out for 15 minutes. Abuse-prone routes
+// keep their own limits: OTP sending/verification and logins (see auth.routes.ts).
 // Request body parsers (supports high-res image uploads & base64 data URLs)
 app.use(express_1.default.json({ limit: '50mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));

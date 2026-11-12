@@ -6,7 +6,6 @@ import path from 'path';
 import { config } from './config/index.js';
 import routes from './presentation/routes/index.js';
 import { errorHandler } from './presentation/middlewares/errorHandler.middleware.js';
-import { globalLimiter } from './presentation/middlewares/rateLimiter.middleware.js';
 import { AppError } from './shared/types.js';
 
 const app = express();
@@ -36,7 +35,7 @@ app.use(cors({
   credentials: true,
 }));
 
-// UptimeRobot & Service Health Check (exempt from rate limits for 24/7 monitoring)
+// UptimeRobot & Service Health Check
 app.get(['/health', '/'], (req, res) => {
   res.status(200).json({
     status: 'HEALTHY',
@@ -47,8 +46,9 @@ app.get(['/health', '/'], (req, res) => {
   });
 });
 
-// Rate limiting
-app.use(globalLimiter);
+// No blanket per-IP request limit: customers browsing the catalogue and staff using the admin
+// portal (many list + image requests) were being locked out for 15 minutes. Abuse-prone routes
+// keep their own limits: OTP sending/verification and logins (see auth.routes.ts).
 
 // Request body parsers (supports high-res image uploads & base64 data URLs)
 app.use(express.json({ limit: '50mb' }));
