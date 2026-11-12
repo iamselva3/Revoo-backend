@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.StorageService = exports.upload = void 0;
+exports.persistBodyImages = exports.StorageService = exports.upload = exports.IMAGE_FOLDERS = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -11,38 +11,61 @@ const multer_1 = __importDefault(require("multer"));
 const client_s3_1 = require("@aws-sdk/client-s3");
 const types_js_1 = require("../../shared/types.js");
 const index_js_1 = require("../../config/index.js");
-// Ensure upload directory exists
+/**
+ * Image storage.
+ *
+ * With R2 configured (STORAGE_DRIVER=r2 plus R2 keys) every image goes to the Cloudflare R2 bucket
+ * and is stored as an absolute public URL, e.g. https://images.genietn.in/uploads/devices/x-1a2b.webp.
+ * Without R2 keys (local development) images are written to the local uploads folder and served
+ * from /uploads/... by the API itself.
+ */
 const uploadBasePath = path_1.default.resolve(process.cwd(), index_js_1.config.storage.uploadDir);
-if (!fs_1.default.existsSync(uploadBasePath)) {
-    fs_1.default.mkdirSync(uploadBasePath, { recursive: true });
-}
-const storage = multer_1.default.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadBasePath);
-    },
-    filename: (req, file, cb) => {
-        const ext = path_1.default.extname(file.originalname).toLowerCase();
-        const uniqueSuffix = crypto_1.default.randomBytes(16).toString('hex');
-        cb(null, `${uniqueSuffix}${ext}`);
-    },
-});
-const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+exports.IMAGE_FOLDERS = [
+    'devices',
+    'brands',
+    'banners',
+    'popups',
+    'products',
+    'categories',
+    'requests',
+    'payments',
+    'misc',
+];
+const MIME_EXT = {
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/avif': '.avif',
+    'image/gif': '.gif',
+};
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+/** Multipart image uploads, kept in memory (nothing is written to the server's disk). */
 exports.upload = (0, multer_1.default)({
-    storage,
-    limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB max
-    },
+    storage: multer_1.default.memoryStorage(),
+    limits: { fileSize: MAX_IMAGE_BYTES },
     fileFilter: (req, file, cb) => {
-        if (allowedMimeTypes.includes(file.mimetype)) {
+        if (MIME_EXT[file.mimetype]) {
             cb(null, true);
         }
         else {
-            cb(new types_js_1.AppError('Invalid file type. Only JPEG, PNG, and WebP images are allowed.', 400));
+            cb(new types_js_1.AppError('Invalid file type. Only JPEG, PNG, WebP, AVIF and GIF images are allowed.', 400));
         }
     },
 });
+const slugify = (value) => (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
 class StorageService {
     static s3Client = null;
+    /** True when uploads go to Cloudflare R2. */
+    static isR2Enabled() {
+        const r2 = index_js_1.config.storage.r2;
+        return (index_js_1.config.storage.driver === 'r2' &&
+            Boolean(r2.accountId && r2.accessKeyId && r2.secretAccessKey && r2.bucketName && r2.publicDomain));
+    }
     static getS3Client() {
         if (!this.s3Client) {
             this.s3Client = new client_s3_1.S3Client({
@@ -56,49 +79,83 @@ class StorageService {
         }
         return this.s3Client;
     }
-    static async uploadToR2(filename, filePath, mimeType) {
-        try {
-            const fileBuffer = fs_1.default.readFileSync(filePath);
-            const s3 = this.getS3Client();
-            const r2Key = `revoo/uploads/${filename}`;
-            await s3.send(new client_s3_1.PutObjectCommand({
-                Bucket: index_js_1.config.storage.r2.bucketName,
-                Key: r2Key,
-                Body: fileBuffer,
-                ContentType: mimeType,
-            }));
-            console.log(`[StorageService] Uploaded ${filename} successfully to Cloudflare R2 bucket ${index_js_1.config.storage.r2.bucketName}`);
-            if (index_js_1.config.storage.r2.publicDomain) {
-                return `${index_js_1.config.storage.r2.publicDomain}/${r2Key}`;
-            }
-            return `https://${index_js_1.config.storage.r2.bucketName}.${index_js_1.config.storage.r2.accountId}.r2.cloudflarestorage.com/${r2Key}`;
-        }
-        catch (err) {
-            console.error('[StorageService] Failed to upload to Cloudflare R2, falling back to local file:', err?.message || err);
-            return `/uploads/${filename}`;
-        }
-    }
-    static getFileUrl(filename) {
-        return `/uploads/${filename}`;
-    }
-    static async deleteFile(filename) {
-        const filePath = path_1.default.join(uploadBasePath, filename);
-        if (fs_1.default.existsSync(filePath)) {
-            fs_1.default.unlinkSync(filePath);
-        }
-        if (index_js_1.config.storage.driver === 'r2') {
+    /**
+     * Stores an image and returns its public URL. The file name includes a hash of the content, so
+     * a changed photo always gets a new URL (no stale caches) and re-uploading the same photo is free.
+     */
+    static async saveImage(buffer, mimeType, folder, nameHint) {
+        const ext = MIME_EXT[mimeType.toLowerCase()];
+        if (!ext)
+            throw new types_js_1.AppError('Unsupported image type.', 400);
+        if (!buffer.length)
+            throw new types_js_1.AppError('The image is empty.', 400);
+        if (buffer.length > MAX_IMAGE_BYTES)
+            throw new types_js_1.AppError('Image is too large (max 10 MB).', 413);
+        const hash = crypto_1.default.createHash('sha256').update(buffer).digest('hex').slice(0, 12);
+        const fileName = `${slugify(nameHint) || 'image'}-${hash}${ext}`;
+        const key = `uploads/${folder}/${fileName}`;
+        if (this.isR2Enabled()) {
             try {
-                const s3 = this.getS3Client();
-                await s3.send(new client_s3_1.DeleteObjectCommand({
+                await this.getS3Client().send(new client_s3_1.PutObjectCommand({
                     Bucket: index_js_1.config.storage.r2.bucketName,
-                    Key: `revoo/uploads/${filename}`,
+                    Key: key,
+                    Body: buffer,
+                    ContentType: mimeType === 'image/jpg' ? 'image/jpeg' : mimeType,
+                    CacheControl: 'public, max-age=31536000, immutable',
                 }));
             }
-            catch (e) {
-                // Silently continue
+            catch (err) {
+                console.error('[StorageService] R2 upload failed:', err?.name || err?.message || err);
+                throw new types_js_1.AppError('Could not store the image right now. Please try again.', 502);
             }
+            return { url: `${index_js_1.config.storage.r2.publicDomain}/${key}`, key };
         }
+        const dir = path_1.default.join(uploadBasePath, folder);
+        await fs_1.default.promises.mkdir(dir, { recursive: true });
+        await fs_1.default.promises.writeFile(path_1.default.join(dir, fileName), buffer);
+        return { url: `/${key}`, key };
+    }
+    /** Decodes a base64 "data:image/...;base64,..." URL. Returns null for anything else. */
+    static parseDataUrl(value) {
+        if (typeof value !== 'string')
+            return null;
+        const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i.exec(value.trim());
+        if (!match)
+            return null;
+        return { mimeType: match[1].toLowerCase(), buffer: Buffer.from(match[2], 'base64') };
+    }
+    /** If the value is an inline base64 image, stores it and returns its URL; otherwise returns it as is. */
+    static async persistImageValue(value, folder, nameHint) {
+        const parsed = this.parseDataUrl(value);
+        if (!parsed)
+            return value;
+        const { url } = await this.saveImage(parsed.buffer, parsed.mimeType, folder, nameHint);
+        return url;
     }
 }
 exports.StorageService = StorageService;
+/**
+ * Route middleware: converts inline base64 images in the request body (e.g. imageUrl / logoUrl
+ * from older admin pages) into stored files, so the database only ever keeps URLs.
+ */
+const persistBodyImages = (folder, fields = ['imageUrl', 'logoUrl']) => async (req, _res, next) => {
+    try {
+        const body = req.body;
+        if (body && typeof body === 'object') {
+            const nameHint = body.slug || body.name || body.title || undefined;
+            for (const field of fields) {
+                if (!(field in body))
+                    continue;
+                body[field] = Array.isArray(body[field])
+                    ? await Promise.all(body[field].map((v) => StorageService.persistImageValue(v, folder, nameHint)))
+                    : await StorageService.persistImageValue(body[field], folder, nameHint);
+            }
+        }
+        next();
+    }
+    catch (err) {
+        next(err);
+    }
+};
+exports.persistBodyImages = persistBodyImages;
 //# sourceMappingURL=StorageService.js.map

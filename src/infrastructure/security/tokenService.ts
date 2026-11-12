@@ -45,7 +45,8 @@ export class TokenService {
     return { accessToken, refreshToken, refreshTokenHash };
   }
 
-  public static generateAdminTokenPair(payload: AdminTokenPayload): {
+  /** @param sid Session id of the admin's device/browser session (see AdminSessionService). */
+  public static generateAdminTokenPair(payload: AdminTokenPayload, sid?: string): {
     accessToken: string;
     refreshToken: string;
     refreshTokenHash: string;
@@ -56,7 +57,7 @@ export class TokenService {
 
     const refreshTokenRaw = crypto.randomBytes(40).toString('hex');
     const refreshToken = jwt.sign(
-      { ...payload, tokenSalt: refreshTokenRaw },
+      { ...payload, ...(sid ? { sid } : {}), tokenSalt: refreshTokenRaw },
       config.jwt.refreshSecret,
       { expiresIn: config.jwt.refreshExpiry as any }
     );

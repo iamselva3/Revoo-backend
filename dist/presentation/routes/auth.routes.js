@@ -20,7 +20,8 @@ router.get('/customer/referral', auth_middleware_js_1.authenticateCustomer, Auth
 // Admin Auth
 router.post('/admin/login', rateLimiter_middleware_js_1.authLimiter, AuthController_js_1.AuthController.adminLogin);
 router.post('/admin/refresh-token', AuthController_js_1.AuthController.adminRefreshToken);
-router.post('/admin/logout', auth_middleware_js_1.authenticateAdmin, AuthController_js_1.AuthController.adminLogout);
+// No access-token guard: logout must work after the access token has expired
+router.post('/admin/logout', AuthController_js_1.AuthController.adminLogout);
 router.get('/admin/profile', auth_middleware_js_1.authenticateAdmin, AuthController_js_1.AuthController.getAdminProfile);
 exports.default = router;
 //# sourceMappingURL=auth.routes.js.map

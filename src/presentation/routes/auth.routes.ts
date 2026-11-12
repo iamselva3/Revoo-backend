@@ -21,7 +21,8 @@ router.get('/customer/referral', authenticateCustomer, AuthController.getCustome
 // Admin Auth
 router.post('/admin/login', authLimiter, AuthController.adminLogin);
 router.post('/admin/refresh-token', AuthController.adminRefreshToken);
-router.post('/admin/logout', authenticateAdmin, AuthController.adminLogout);
+// No access-token guard: logout must work after the access token has expired
+router.post('/admin/logout', AuthController.adminLogout);
 router.get('/admin/profile', authenticateAdmin, AuthController.getAdminProfile);
 
 export default router;

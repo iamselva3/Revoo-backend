@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { TokenService } from '../../infrastructure/security/tokenService.js';
 import { GoogleAuthService } from '../../infrastructure/security/GoogleAuthService.js';
 import { CustomerSessionService } from '../../infrastructure/security/CustomerSessionService.js';
+import { AdminSessionService } from '../../infrastructure/security/AdminSessionService.js';
 import { UserModel } from '../../infrastructure/database/models/User.js';
 import { AdminUserModel } from '../../infrastructure/database/models/AdminUser.js';
 import { OtpRecordModel } from '../../infrastructure/database/models/OtpRecord.js';
@@ -613,17 +614,10 @@ export class AuthController {
         return next(new AppError('Invalid email or password credentials.', 401));
       }
 
-      const tokenPair = TokenService.generateAdminTokenPair({
-        adminId: admin._id.toString(),
-        email: admin.email,
-        role: admin.role,
-        fullName: admin.fullName,
-        type: 'ADMIN',
-      });
-
+      // Each sign-in is its own session: logging in elsewhere never logs this device out
+      const tokenPair = await AdminSessionService.issue(admin, req.get('user-agent'));
       admin.lastLogin = new Date();
-      admin.refreshTokenHash = tokenPair.refreshTokenHash;
-      await admin.save();
+      await AdminUserModel.updateOne({ _id: admin._id }, { $set: { lastLogin: admin.lastLogin } });
 
       await logAuditEvent({
         req,
@@ -659,31 +653,10 @@ export class AuthController {
 
   public static async adminRefreshToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const { refreshToken } = req.body;
-      const decoded = TokenService.verifyRefreshToken<any>(refreshToken);
-
-      if (decoded.type !== 'ADMIN') {
-        return next(new AppError('Invalid token type for admin refresh.', 403));
-      }
-
-      const hash = TokenService.hashToken(refreshToken);
-      const admin = await AdminUserModel.findOne({ _id: decoded.adminId, refreshTokenHash: hash });
-
-      if (!admin || !admin.isActive) {
-        await AdminUserModel.findByIdAndUpdate(decoded.adminId, { $unset: { refreshTokenHash: 1 } });
-        return next(new AppError('Invalid or expired admin refresh token.', 401));
-      }
-
-      const tokenPair = TokenService.generateAdminTokenPair({
-        adminId: admin._id.toString(),
-        email: admin.email,
-        role: admin.role,
-        fullName: admin.fullName,
-        type: 'ADMIN',
-      });
-
-      admin.refreshTokenHash = tokenPair.refreshTokenHash;
-      await admin.save();
+      const { refreshToken } = req.body || {};
+      if (!refreshToken) return next(new AppError('Admin session expired. Please log in again.', 401));
+      const tokenPair = await AdminSessionService.rotate(refreshToken, req.get('user-agent'));
+      if (!tokenPair) return next(new AppError('Invalid or expired admin refresh token.', 401));
 
       res.status(200).json({
         success: true,
@@ -698,11 +671,10 @@ export class AuthController {
     }
   }
 
-  public static async adminLogout(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
+  public static async adminLogout(req: Request, res: Response, next: NextFunction) {
     try {
-      if (req.admin?.id) {
-        await AdminUserModel.findByIdAndUpdate(req.admin.id, { $unset: { refreshTokenHash: 1 } });
-      }
+      // Ends only this device's session (works even after the access token has expired)
+      await AdminSessionService.revoke(req.body?.refreshToken);
       res.status(200).json({ success: true, message: 'Admin logged out successfully.' });
     } catch (err) {
       next(err);

@@ -22,12 +22,13 @@ class TokenService {
         const refreshTokenHash = crypto_1.default.createHash('sha256').update(refreshToken).digest('hex');
         return { accessToken, refreshToken, refreshTokenHash };
     }
-    static generateAdminTokenPair(payload) {
+    /** @param sid Session id of the admin's device/browser session (see AdminSessionService). */
+    static generateAdminTokenPair(payload, sid) {
         const accessToken = jsonwebtoken_1.default.sign(payload, index_js_1.config.jwt.accessSecret, {
             expiresIn: index_js_1.config.jwt.accessExpiry,
         });
         const refreshTokenRaw = crypto_1.default.randomBytes(40).toString('hex');
-        const refreshToken = jsonwebtoken_1.default.sign({ ...payload, tokenSalt: refreshTokenRaw }, index_js_1.config.jwt.refreshSecret, { expiresIn: index_js_1.config.jwt.refreshExpiry });
+        const refreshToken = jsonwebtoken_1.default.sign({ ...payload, ...(sid ? { sid } : {}), tokenSalt: refreshTokenRaw }, index_js_1.config.jwt.refreshSecret, { expiresIn: index_js_1.config.jwt.refreshExpiry });
         const refreshTokenHash = crypto_1.default.createHash('sha256').update(refreshToken).digest('hex');
         return { accessToken, refreshToken, refreshTokenHash };
     }

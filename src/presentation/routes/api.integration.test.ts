@@ -11,6 +11,7 @@ import { TokenService } from '../../infrastructure/security/tokenService.js';
 import { GoogleAuthService } from '../../infrastructure/security/GoogleAuthService.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
 import { AdminRole } from '../../shared/types.js';
+import { StorageService } from '../../infrastructure/storage/StorageService.js';
 
 describe('REVOO Backend Integration Tests', () => {
   let mongoServer: MongoMemoryServer;
@@ -506,6 +507,131 @@ describe('REVOO Backend Integration Tests', () => {
 
     test('Garbage refresh tokens are rejected with 401', async () => {
       expect((await refresh('not-a-jwt-token')).status).toBe(401);
+    });
+  });
+
+  describe('Admin sessions (no surprise logouts)', () => {
+    const login = async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/admin/login')
+        .send({ email: 'admin@revoo.test', password: 'AdminTest123!' });
+      expect(res.status).toBe(200);
+      return res.body.data.tokens as { accessToken: string; refreshToken: string };
+    };
+    const refresh = (refreshToken: string) =>
+      request(app).post('/api/v1/auth/admin/refresh-token').send({ refreshToken });
+
+    test('Refreshing returns a working new token pair', async () => {
+      const res = await refresh((await login()).refreshToken);
+      expect(res.status).toBe(200);
+      const profile = await request(app)
+        .get('/api/v1/auth/admin/profile')
+        .set('Authorization', `Bearer ${res.body.data.accessToken}`);
+      expect(profile.status).toBe(200);
+    });
+
+    test('Several requests refreshing at the same moment all succeed', async () => {
+      const session = await login();
+      const results = await Promise.all([1, 2, 3, 4, 5].map(() => refresh(session.refreshToken)));
+      results.forEach((r) => expect(r.status).toBe(200));
+      // Everyone got the same successor, so whichever one the browser keeps is valid
+      expect(new Set(results.map((r) => r.body.data.refreshToken)).size).toBe(1);
+      expect((await refresh(results[4].body.data.refreshToken)).status).toBe(200);
+    });
+
+    test('Two computers signed in to the same admin account both stay signed in', async () => {
+      const pcA = await login();
+      const pcB = await login();
+      expect((await refresh(pcA.refreshToken)).status).toBe(200);
+      expect((await refresh(pcB.refreshToken)).status).toBe(200);
+    });
+
+    test('Reusing an old refresh token ends that session only', async () => {
+      const victim = await login();
+      const other = await login();
+      const second = (await refresh(victim.refreshToken)).body.data.refreshToken;
+      const third = (await refresh(second)).body.data.refreshToken;
+      expect((await refresh(victim.refreshToken)).status).toBe(401);
+      expect((await refresh(third)).status).toBe(401);
+      expect((await refresh(other.refreshToken)).status).toBe(200);
+    });
+
+    test('Logout ends this computer only and works without an access token', async () => {
+      const pcA = await login();
+      const pcB = await login();
+      expect((await request(app).post('/api/v1/auth/admin/logout').send({ refreshToken: pcA.refreshToken })).status).toBe(200);
+      expect((await refresh(pcA.refreshToken)).status).toBe(401);
+      expect((await refresh(pcB.refreshToken)).status).toBe(200);
+    });
+
+    test('A token issued before sessions existed is accepted once and moved into a session', async () => {
+      const admin = await AdminUserModel.findOne({ email: 'admin@revoo.test' });
+      const legacy = TokenService.generateAdminTokenPair({
+        adminId: admin!._id.toString(),
+        email: admin!.email,
+        role: admin!.role,
+        fullName: admin!.fullName,
+        type: 'ADMIN',
+      });
+      await AdminUserModel.updateOne({ _id: admin!._id }, { $set: { refreshTokenHash: legacy.refreshTokenHash } });
+      const res = await refresh(legacy.refreshToken);
+      expect(res.status).toBe(200);
+      expect((await refresh(res.body.data.refreshToken)).status).toBe(200);
+    });
+  });
+
+  describe('Admin photo uploads', () => {
+    // 1x1 PNG
+    const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const created: string[] = [];
+    const fs = require('fs') as typeof import('fs');
+    const path = require('path') as typeof import('path');
+
+    beforeAll(() => {
+      // Tests never touch the real bucket: store on local disk and clean up afterwards
+      jest.spyOn(StorageService, 'isR2Enabled').mockReturnValue(false);
+    });
+    afterAll(() => {
+      created.forEach((url) => fs.rmSync(path.resolve(process.cwd(), url.replace(/^\//, '')), { force: true }));
+      jest.restoreAllMocks();
+    });
+
+    test('POST /catalogue/admin/media stores the photo and returns its URL', async () => {
+      const res = await request(app)
+        .post('/api/v1/catalogue/admin/media')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .field('folder', 'devices')
+        .field('name', 'Test Phone 9')
+        .attach('image', Buffer.from(PNG_BASE64, 'base64'), { filename: 'photo.png', contentType: 'image/png' });
+      expect(res.status).toBe(201);
+      expect(res.body.data.url).toMatch(/^\/uploads\/devices\/test-phone-9-[0-9a-f]{12}\.png$/);
+      created.push(res.body.data.url);
+    });
+
+    test('Photo upload needs an admin login', async () => {
+      const res = await request(app)
+        .post('/api/v1/catalogue/admin/media')
+        .attach('image', Buffer.from(PNG_BASE64, 'base64'), { filename: 'photo.png', contentType: 'image/png' });
+      expect(res.status).toBe(401);
+    });
+
+    test('Non-image files are rejected', async () => {
+      const res = await request(app)
+        .post('/api/v1/catalogue/admin/media')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('image', Buffer.from('hello'), { filename: 'note.txt', contentType: 'text/plain' });
+      expect(res.status).toBe(400);
+    });
+
+    test('A base64 photo sent with a brand is stored as a file, never kept in the database', async () => {
+      const res = await request(app)
+        .put(`/api/v1/catalogue/admin/brands/${sampleBrandId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ logoUrl: `data:image/png;base64,${PNG_BASE64}` });
+      expect(res.status).toBe(200);
+      const brand = await BrandModel.findById(sampleBrandId);
+      expect(brand!.logoUrl).toMatch(/^\/uploads\/brands\/[a-z0-9-]+-[0-9a-f]{12}\.png$/);
+      created.push(brand!.logoUrl as string);
     });
   });
 

@@ -44,6 +44,22 @@ const AdminUserSchema = new mongoose_1.Schema({
     isActive: { type: Boolean, default: true },
     lastLogin: { type: Date },
     refreshTokenHash: { type: String, select: false },
+    sessions: {
+        type: [
+            {
+                _id: false,
+                sid: { type: String, required: true },
+                hash: { type: String, required: true },
+                prevHash: { type: String },
+                rotatedAt: { type: Date },
+                createdAt: { type: Date, default: Date.now },
+                lastUsedAt: { type: Date, default: Date.now },
+                userAgent: { type: String },
+            },
+        ],
+        select: false,
+        default: undefined,
+    },
 }, { timestamps: true });
 exports.AdminUserModel = mongoose_1.default.model('AdminUser', AdminUserSchema);
 //# sourceMappingURL=AdminUser.js.map

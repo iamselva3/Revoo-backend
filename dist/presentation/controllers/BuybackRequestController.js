@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BuybackRequestController = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
+const crypto_1 = __importDefault(require("crypto"));
 const BuybackRequest_js_1 = require("../../infrastructure/database/models/BuybackRequest.js");
 const Inspection_js_1 = require("../../infrastructure/database/models/Inspection.js");
 const FinalOffer_js_1 = require("../../infrastructure/database/models/FinalOffer.js");
@@ -20,7 +21,6 @@ const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
 const StorageService_js_1 = require("../../infrastructure/storage/StorageService.js");
 const DeviceImage_js_1 = require("../../infrastructure/database/models/DeviceImage.js");
 const User_js_1 = require("../../infrastructure/database/models/User.js");
-const index_js_1 = require("../../config/index.js");
 const PAYOUT_METHODS = ['UPI', 'BANK_TRANSFER', 'INSTANT_CASH'];
 const cleanText = (value, max = 200) => {
     if (value === undefined || value === null)
@@ -389,10 +389,8 @@ class BuybackRequestController {
             if (!req.file) {
                 return next(new types_js_1.AppError('No file uploaded or file rejected by validator.', 400));
             }
-            let fileUrl = StorageService_js_1.StorageService.getFileUrl(req.file.filename);
-            if (index_js_1.config.storage.driver === 'r2') {
-                fileUrl = await StorageService_js_1.StorageService.uploadToR2(req.file.filename, req.file.path, req.file.mimetype);
-            }
+            // Random name: customer photos must not be guessable from their URL
+            const { url: fileUrl } = await StorageService_js_1.StorageService.saveImage(req.file.buffer, req.file.mimetype, 'requests', crypto_1.default.randomBytes(8).toString('hex'));
             const deviceImage = await DeviceImage_js_1.DeviceImageModel.create({
                 imageUrl: fileUrl,
                 imageType: req.body.imageType || 'CUSTOMER_FRONT',

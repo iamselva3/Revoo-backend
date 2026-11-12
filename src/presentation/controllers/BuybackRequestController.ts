@@ -431,10 +431,13 @@ export class BuybackRequestController {
         return next(new AppError('No file uploaded or file rejected by validator.', 400));
       }
 
-      let fileUrl = StorageService.getFileUrl(req.file.filename);
-      if (config.storage.driver === 'r2') {
-        fileUrl = await StorageService.uploadToR2(req.file.filename, req.file.path, req.file.mimetype);
-      }
+      // Random name: customer photos must not be guessable from their URL
+      const { url: fileUrl } = await StorageService.saveImage(
+        req.file.buffer,
+        req.file.mimetype,
+        'requests',
+        crypto.randomBytes(8).toString('hex')
+      );
 
       const deviceImage = await DeviceImageModel.create({
         imageUrl: fileUrl,

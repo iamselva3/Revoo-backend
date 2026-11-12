@@ -9,6 +9,8 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 exports.authLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 20, // max 20 auth attempts per IP
+    // The test suite signs in many times from one address
+    skip: () => process.env.NODE_ENV === 'test',
     standardHeaders: true,
     legacyHeaders: false,
     validate: { xForwardedForHeader: false },

@@ -16,14 +16,18 @@ export const config = {
     origin: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:3000').split(','),
   },
   storage: {
+    // 'r2' stores uploads in the Cloudflare R2 bucket; anything else (or missing R2 keys) keeps them
+    // on the server's local disk under uploadDir.
     driver: process.env.STORAGE_DRIVER || 'r2',
     uploadDir: process.env.UPLOAD_DIR || 'uploads',
     r2: {
-      accountId: process.env.CLOUDFLARE_ACCOUNT_ID || 'ebb60884050ceb5a3565e132a7ef9394',
-      bucketName: process.env.R2_BUCKET_NAME || 'imagix-photography-images',
-      accessKeyId: process.env.R2_ACCESS_KEY_ID || '911fbef0629a384efdb68d1270c075ed',
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || 'e9889183b2271939330898a6934ef4e2b7fab429c459dbf60d65d7724c7447ea',
-      publicDomain: process.env.R2_PUBLIC_DOMAIN || '',
+      // Keys are secrets: set them in the environment only (never commit them).
+      accountId: process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || '',
+      bucketName: process.env.R2_BUCKET_NAME || 'genie',
+      accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+      // Public address of the bucket (custom domain connected in Cloudflare R2)
+      publicDomain: (process.env.R2_PUBLIC_DOMAIN || 'https://images.genietn.in').replace(/\/+$/, ''),
     },
   },
   email: {

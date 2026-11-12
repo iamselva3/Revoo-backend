@@ -4,6 +4,7 @@ exports.AuthController = void 0;
 const tokenService_js_1 = require("../../infrastructure/security/tokenService.js");
 const GoogleAuthService_js_1 = require("../../infrastructure/security/GoogleAuthService.js");
 const CustomerSessionService_js_1 = require("../../infrastructure/security/CustomerSessionService.js");
+const AdminSessionService_js_1 = require("../../infrastructure/security/AdminSessionService.js");
 const User_js_1 = require("../../infrastructure/database/models/User.js");
 const AdminUser_js_1 = require("../../infrastructure/database/models/AdminUser.js");
 const OtpRecord_js_1 = require("../../infrastructure/database/models/OtpRecord.js");
@@ -568,16 +569,10 @@ class AuthController {
             if (!isMatch) {
                 return next(new types_js_1.AppError('Invalid email or password credentials.', 401));
             }
-            const tokenPair = tokenService_js_1.TokenService.generateAdminTokenPair({
-                adminId: admin._id.toString(),
-                email: admin.email,
-                role: admin.role,
-                fullName: admin.fullName,
-                type: 'ADMIN',
-            });
+            // Each sign-in is its own session: logging in elsewhere never logs this device out
+            const tokenPair = await AdminSessionService_js_1.AdminSessionService.issue(admin, req.get('user-agent'));
             admin.lastLogin = new Date();
-            admin.refreshTokenHash = tokenPair.refreshTokenHash;
-            await admin.save();
+            await AdminUser_js_1.AdminUserModel.updateOne({ _id: admin._id }, { $set: { lastLogin: admin.lastLogin } });
             await (0, audit_middleware_js_1.logAuditEvent)({
                 req,
                 actorType: 'ADMIN',
@@ -611,26 +606,12 @@ class AuthController {
     }
     static async adminRefreshToken(req, res, next) {
         try {
-            const { refreshToken } = req.body;
-            const decoded = tokenService_js_1.TokenService.verifyRefreshToken(refreshToken);
-            if (decoded.type !== 'ADMIN') {
-                return next(new types_js_1.AppError('Invalid token type for admin refresh.', 403));
-            }
-            const hash = tokenService_js_1.TokenService.hashToken(refreshToken);
-            const admin = await AdminUser_js_1.AdminUserModel.findOne({ _id: decoded.adminId, refreshTokenHash: hash });
-            if (!admin || !admin.isActive) {
-                await AdminUser_js_1.AdminUserModel.findByIdAndUpdate(decoded.adminId, { $unset: { refreshTokenHash: 1 } });
+            const { refreshToken } = req.body || {};
+            if (!refreshToken)
+                return next(new types_js_1.AppError('Admin session expired. Please log in again.', 401));
+            const tokenPair = await AdminSessionService_js_1.AdminSessionService.rotate(refreshToken, req.get('user-agent'));
+            if (!tokenPair)
                 return next(new types_js_1.AppError('Invalid or expired admin refresh token.', 401));
-            }
-            const tokenPair = tokenService_js_1.TokenService.generateAdminTokenPair({
-                adminId: admin._id.toString(),
-                email: admin.email,
-                role: admin.role,
-                fullName: admin.fullName,
-                type: 'ADMIN',
-            });
-            admin.refreshTokenHash = tokenPair.refreshTokenHash;
-            await admin.save();
             res.status(200).json({
                 success: true,
                 message: 'Admin token refreshed.',
@@ -646,9 +627,8 @@ class AuthController {
     }
     static async adminLogout(req, res, next) {
         try {
-            if (req.admin?.id) {
-                await AdminUser_js_1.AdminUserModel.findByIdAndUpdate(req.admin.id, { $unset: { refreshTokenHash: 1 } });
-            }
+            // Ends only this device's session (works even after the access token has expired)
+            await AdminSessionService_js_1.AdminSessionService.revoke(req.body?.refreshToken);
             res.status(200).json({ success: true, message: 'Admin logged out successfully.' });
         }
         catch (err) {
