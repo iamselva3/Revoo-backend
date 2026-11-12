@@ -5,6 +5,7 @@ import { AdminUserModel } from './infrastructure/database/models/AdminUser.js';
 import { seedDatabase } from './infrastructure/database/seeds/seed.js';
 import { seedGeoDataIfNeeded } from './infrastructure/database/seeds/geoSeed.js';
 import { seedEmployeesIfNeeded } from './infrastructure/database/seeds/employeeSeed.js';
+import { seedBrandArrangementIfNeeded } from './infrastructure/database/seeds/brandArrangementSeed.js';
 import { BuybackRequestModel } from './infrastructure/database/models/BuybackRequest.js';
 import { InvoiceModel } from './infrastructure/database/models/Invoice.js';
 
@@ -29,6 +30,9 @@ async function bootstrap() {
 
       // Ensure Collection Partners & Employees are seeded across Tamil Nadu
       await seedEmployeesIfNeeded();
+
+      // Ensure exact 22 phone brands arrangement & models
+      await seedBrandArrangementIfNeeded();
 
       // Automatically migrate legacy REV- prefixes in existing database records to GENIE-
       try {
