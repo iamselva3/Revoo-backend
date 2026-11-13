@@ -284,6 +284,7 @@ export class CatalogueController {
         customDeductions: (pricingRule as any)?.customDeductions ?? (pricingRule as any)?.specific_deductions_inr,
         customPercentages: (pricingRule as any)?.customPercentages,
         accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(pricingRule),
+        deviceAgePercentages: ValuationEngine.deviceAgePercentagesFromRule(pricingRule),
       };
 
       // STEP 4: Map app's answers to engine's input object

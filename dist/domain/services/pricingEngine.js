@@ -12,6 +12,11 @@ const MISSING_ACCESSORY_MAX_PCT = 0.05;
 const MISSING_ACCESSORY_KEYS = { original_charger: 'missing_original_charger', box_same_imei: 'missing_box_same_imei' };
 // No bill with the same IMEI: the same ₹210 as before (on top of the no-bill warranty penalty).
 const NO_BILL_DEDUCTION = ACC_BONUS.bill_same_imei;
+// How old the phone is (customer's answer, counted from the purchase date). Per model the admin
+// sets the % of the price taken off for each age band (PricingRule.deductionPercentages.deviceAge,
+// whole numbers: 5 = 5%). A band the admin hasn't set takes nothing off.
+const DEVICE_AGE_BANDS = ['BELOW_3_MONTHS', '3_TO_6_MONTHS', '6_TO_11_MONTHS', 'ABOVE_11_MONTHS'];
+const DEVICE_AGE_MAX_PCT = 90;
 const DEFAULT_PCT = {
     // Screen & touch (single select)
     flawless: 0,
@@ -73,12 +78,14 @@ function resolveDeduction(key, basePrice, phone) {
 }
 /**
  * @param {object} phone  { basePrice, minScrapPrice?, customDeductions?, customPercentages?,
- *                          accessoryDeductions?: { original_charger?: number, box_same_imei?: number } }
+ *                          accessoryDeductions?: { original_charger?: number, box_same_imei?: number },
+ *                          deviceAgePercentages?: { [band]: number }  (whole % per age band) }
  * @param {object} input  {
  *   phone_working_condition: boolean,
  *   screenKey: string, bodyKey: string, batteryKey: string,
  *   hardwareKeys: string[],
- *   accessories: { original_charger, box_same_imei, bill_same_imei }  (booleans)
+ *   accessories: { original_charger, box_same_imei, bill_same_imei }  (booleans),
+ *   deviceAge?: 'BELOW_3_MONTHS' | '3_TO_6_MONTHS' | '6_TO_11_MONTHS' | 'ABOVE_11_MONTHS'
  * }
  * @param {object} [config] { criticalKeys?: string[], criticalIncludesAccessories?: boolean }
  */
@@ -143,6 +150,17 @@ function calculatePrice(phone, input, config = {}) {
     if (acc.bill_same_imei !== true) {
         result.deductions.push({ key: 'missing_bill_document', amount: NO_BILL_DEDUCTION, source: 'default_flat' });
     }
+    // Phone age: admin's % for the band the customer picked
+    if (DEVICE_AGE_BANDS.includes(input.deviceAge)) {
+        const pct = phone.deviceAgePercentages?.[input.deviceAge];
+        if (typeof pct === 'number' && Number.isFinite(pct) && pct > 0) {
+            const appliedPct = Math.min(pct, DEVICE_AGE_MAX_PCT);
+            const amount = Math.round((basePrice * appliedPct) / 100);
+            if (amount > 0) {
+                result.deductions.push({ key: 'device_age', amount, source: 'admin_pct', band: input.deviceAge, pct: appliedPct });
+            }
+        }
+    }
     result.totalDeductions = result.deductions.reduce((s, d) => s + d.amount, 0);
     result.rawBodyPrice = basePrice - result.totalDeductions;
     result.clampedBodyPrice = Math.max(scrapFloor, result.rawBodyPrice);
@@ -161,5 +179,6 @@ function calculatePrice(phone, input, config = {}) {
 module.exports = {
     calculatePrice, DEFAULT_PCT, WARRANTY_VOID_KEYS, ACC_BONUS,
     DEFAULT_MISSING_ACCESSORY, MISSING_ACCESSORY_MAX_PCT, MISSING_ACCESSORY_KEYS,
+    DEVICE_AGE_BANDS, DEVICE_AGE_MAX_PCT,
 };
 //# sourceMappingURL=pricingEngine.js.map

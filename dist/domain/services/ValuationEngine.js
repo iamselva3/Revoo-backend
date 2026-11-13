@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateValuation = exports.ValuationEngine = exports.GlobalDefaultPct = exports.WARRANTY_VOID_TRIGGERS = exports.DEFAULT_WARRANTY_PENALTY_PCT = exports.DEFAULT_SCRAP_FLOOR_MULTIPLIER = exports.MAX_ACC_POOL = exports.BILL_BONUS = exports.BOX_BONUS = exports.CHARGER_BONUS = exports.ACC_BONUS = exports.WARRANTY_VOID_KEYS = exports.DEFAULT_PCT = exports.calculatePrice = void 0;
+exports.calculateValuation = exports.ValuationEngine = exports.GlobalDefaultPct = exports.DEVICE_AGE_LABELS = exports.WARRANTY_VOID_TRIGGERS = exports.DEFAULT_WARRANTY_PENALTY_PCT = exports.DEFAULT_SCRAP_FLOOR_MULTIPLIER = exports.MAX_ACC_POOL = exports.BILL_BONUS = exports.BOX_BONUS = exports.CHARGER_BONUS = exports.ACC_BONUS = exports.WARRANTY_VOID_KEYS = exports.DEFAULT_PCT = exports.calculatePrice = void 0;
 const pricingEngine_js_1 = require("./pricingEngine.js");
 Object.defineProperty(exports, "calculatePrice", { enumerable: true, get: function () { return pricingEngine_js_1.calculatePrice; } });
 Object.defineProperty(exports, "DEFAULT_PCT", { enumerable: true, get: function () { return pricingEngine_js_1.DEFAULT_PCT; } });
@@ -13,6 +13,13 @@ exports.MAX_ACC_POOL = exports.CHARGER_BONUS + exports.BOX_BONUS + exports.BILL_
 exports.DEFAULT_SCRAP_FLOOR_MULTIPLIER = 0.022;
 exports.DEFAULT_WARRANTY_PENALTY_PCT = 0.18;
 exports.WARRANTY_VOID_TRIGGERS = Array.from(pricingEngine_js_1.WARRANTY_VOID_KEYS);
+/** Customer-facing names of the phone-age bands (same wording as the website). */
+exports.DEVICE_AGE_LABELS = {
+    BELOW_3_MONTHS: 'Below 3 months',
+    '3_TO_6_MONTHS': '3 to 6 months',
+    '6_TO_11_MONTHS': '6 to 11 months',
+    ABOVE_11_MONTHS: 'Above 11 months',
+};
 exports.GlobalDefaultPct = pricingEngine_js_1.DEFAULT_PCT;
 class ValuationEngine {
     /**
@@ -290,7 +297,15 @@ class ValuationEngine {
                 box_same_imei: !!box_same_imei,
                 bill_same_imei: !!bill_same_imei,
             },
+            deviceAge: ValuationEngine.normalizeDeviceAge(c.deviceAge ?? c.device_age ?? c.basicQuestions?.deviceAge),
         };
+    }
+    /** "6_TO_11_MONTHS", "6-to-11-months", "6 to 11 months" -> "6_TO_11_MONTHS"; anything else -> undefined. */
+    static normalizeDeviceAge(value) {
+        if (typeof value !== 'string')
+            return undefined;
+        const key = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        return pricingEngine_js_1.DEVICE_AGE_BANDS.includes(key) ? key : undefined;
     }
     /**
      * Maps database PricingRule or variant/model info into engine's phone object
@@ -316,7 +331,21 @@ class ValuationEngine {
             customDeductions: rule.customDeductions ?? rule.specific_deductions_inr,
             customPercentages,
             accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(rule),
+            deviceAgePercentages: ValuationEngine.deviceAgePercentagesFromRule(rule),
         };
+    }
+    /** Admin's per-model "% taken off" for each phone-age band (PricingRule.deductionPercentages.deviceAge). */
+    static deviceAgePercentagesFromRule(rule) {
+        const raw = rule?.deductionPercentages?.deviceAge;
+        if (!raw || typeof raw !== 'object')
+            return undefined;
+        const out = {};
+        for (const band of pricingEngine_js_1.DEVICE_AGE_BANDS) {
+            const v = Number(raw[band]);
+            if (raw[band] !== null && raw[band] !== '' && Number.isFinite(v) && v >= 0)
+                out[band] = v;
+        }
+        return out;
     }
     /**
      * Admin's per-model "taken off when missing" amounts for the charger and box
@@ -374,6 +403,15 @@ class ValuationEngine {
             const rateSource = mapRateSource(d.source);
             if (ACCESSORY_LINES[d.key]) {
                 breakdown.push({ ...ACCESSORY_LINES[d.key], adjustment: -d.amount, rateSource });
+            }
+            else if (d.key === 'device_age') {
+                const label = d.band ? exports.DEVICE_AGE_LABELS[d.band] : 'Phone age';
+                breakdown.push({
+                    component: `Phone age: ${label}`,
+                    description: `${d.pct}% taken off for a phone that is ${label.toLowerCase()} old`,
+                    adjustment: -d.amount,
+                    rateSource,
+                });
             }
             else if (d.key === input.screenKey) {
                 screenDeduction = d.amount;

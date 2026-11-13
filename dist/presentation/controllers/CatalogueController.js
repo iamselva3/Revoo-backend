@@ -242,6 +242,7 @@ class CatalogueController {
                 customDeductions: pricingRule?.customDeductions ?? pricingRule?.specific_deductions_inr,
                 customPercentages: pricingRule?.customPercentages,
                 accessoryDeductions: ValuationEngine_js_1.ValuationEngine.accessoryDeductionsFromRule(pricingRule),
+                deviceAgePercentages: ValuationEngine_js_1.ValuationEngine.deviceAgePercentagesFromRule(pricingRule),
             };
             // STEP 4: Map app's answers to engine's input object
             const engineInput = ValuationEngine_js_1.ValuationEngine.mapConditionToEngineInput(fullCondition);

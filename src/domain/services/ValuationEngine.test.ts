@@ -131,6 +131,56 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(ValuationEngine.calculate(cheap, condition).finalPrice).toBe(3600);
   });
 
+  describe('Phone age', () => {
+    const ageRule = {
+      ...iphone18ProMaxRule,
+      deductionPercentages: { deviceAge: { BELOW_3_MONTHS: 0, '3_TO_6_MONTHS': 3, '6_TO_11_MONTHS': 6, ABOVE_11_MONTHS: 10 } },
+    } as any;
+    const perfect = (deviceAge?: string) =>
+      ({
+        phone_working_condition: true,
+        screen_condition: 'flawless',
+        body_condition: 'no_scratches_flawless',
+        battery_health: 'above_90_percent',
+        hardware_defects: [],
+        accessories: ['original_charger', 'box_same_imei', 'bill_same_imei'],
+        deviceAge,
+      }) as any;
+
+    test("takes off the admin's % for the age the customer picked", () => {
+      const result = ValuationEngine.calculate(ageRule, perfect('6_TO_11_MONTHS'));
+      expect(result.finalPrice).toBe(90900 - Math.round(90900 * 0.06)); // 85446
+      const line = result.breakdown.find((b) => b.component === 'Phone age: 6 to 11 months');
+      expect(line?.adjustment).toBe(-5454);
+    });
+
+    test('0% (or a band the admin has not set) takes nothing off', () => {
+      expect(ValuationEngine.calculate(ageRule, perfect('BELOW_3_MONTHS')).finalPrice).toBe(90900);
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect('ABOVE_11_MONTHS')).finalPrice).toBe(90900);
+    });
+
+    test('no answer (e.g. older app versions) takes nothing off', () => {
+      expect(ValuationEngine.calculate(ageRule, perfect(undefined)).finalPrice).toBe(90900);
+    });
+
+    test('adds up with missing accessories', () => {
+      const condition = { ...perfect('ABOVE_11_MONTHS'), accessories: ['bill_same_imei'] };
+      // 10% of 90900 = 9090, charger 500, box 500
+      expect(ValuationEngine.calculate(ageRule, condition).finalPrice).toBe(90900 - 9090 - 500 - 500);
+    });
+
+    test('does not apply to a phone that does not switch on', () => {
+      const result = ValuationEngine.calculate(ageRule, { phone_working_condition: false, deviceAge: 'ABOVE_11_MONTHS' } as any);
+      expect(result.finalPrice).toBe(2000);
+    });
+
+    test('accepts the age in any common spelling', () => {
+      expect(ValuationEngine.normalizeDeviceAge('3 to 6 months')).toBe('3_TO_6_MONTHS');
+      expect(ValuationEngine.normalizeDeviceAge('above-11-months')).toBe('ABOVE_11_MONTHS');
+      expect(ValuationEngine.normalizeDeviceAge('two years')).toBeUndefined();
+    });
+  });
+
   test('Gatekeeper Rule: Phone does not turn on skips all defect deductions', () => {
     // phone_working_condition === false:
     // FinalPrice = ScrapFloor + SelectedAccBonus

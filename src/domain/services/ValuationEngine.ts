@@ -10,6 +10,8 @@ import {
   DEFAULT_PCT,
   WARRANTY_VOID_KEYS,
   ACC_BONUS,
+  DEVICE_AGE_BANDS,
+  DeviceAgeBand,
   PricingEngineInput,
   PhonePricingData,
   PricingEngineResult,
@@ -27,6 +29,14 @@ export const DEFAULT_SCRAP_FLOOR_MULTIPLIER = 0.022;
 export const DEFAULT_WARRANTY_PENALTY_PCT = 0.18;
 
 export const WARRANTY_VOID_TRIGGERS: readonly string[] = Array.from(WARRANTY_VOID_KEYS);
+
+/** Customer-facing names of the phone-age bands (same wording as the website). */
+export const DEVICE_AGE_LABELS: Record<DeviceAgeBand, string> = {
+  BELOW_3_MONTHS: 'Below 3 months',
+  '3_TO_6_MONTHS': '3 to 6 months',
+  '6_TO_11_MONTHS': '6 to 11 months',
+  ABOVE_11_MONTHS: 'Above 11 months',
+};
 export const GlobalDefaultPct: Record<string, number> = DEFAULT_PCT;
 
 export interface ResolvedDeduction {
@@ -289,7 +299,15 @@ export class ValuationEngine {
         box_same_imei: !!box_same_imei,
         bill_same_imei: !!bill_same_imei,
       },
+      deviceAge: ValuationEngine.normalizeDeviceAge(c.deviceAge ?? c.device_age ?? c.basicQuestions?.deviceAge),
     };
+  }
+
+  /** "6_TO_11_MONTHS", "6-to-11-months", "6 to 11 months" -> "6_TO_11_MONTHS"; anything else -> undefined. */
+  public static normalizeDeviceAge(value: unknown): DeviceAgeBand | undefined {
+    if (typeof value !== 'string') return undefined;
+    const key = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    return (DEVICE_AGE_BANDS as string[]).includes(key) ? (key as DeviceAgeBand) : undefined;
   }
 
   /**
@@ -318,7 +336,20 @@ export class ValuationEngine {
       customDeductions: rule.customDeductions ?? rule.specific_deductions_inr,
       customPercentages,
       accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(rule),
+      deviceAgePercentages: ValuationEngine.deviceAgePercentagesFromRule(rule),
     };
+  }
+
+  /** Admin's per-model "% taken off" for each phone-age band (PricingRule.deductionPercentages.deviceAge). */
+  public static deviceAgePercentagesFromRule(rule: any): Partial<Record<DeviceAgeBand, number>> | undefined {
+    const raw = rule?.deductionPercentages?.deviceAge;
+    if (!raw || typeof raw !== 'object') return undefined;
+    const out: Partial<Record<DeviceAgeBand, number>> = {};
+    for (const band of DEVICE_AGE_BANDS) {
+      const v = Number(raw[band]);
+      if (raw[band] !== null && raw[band] !== '' && Number.isFinite(v) && v >= 0) out[band] = v;
+    }
+    return out;
   }
 
   /**
@@ -384,6 +415,14 @@ export class ValuationEngine {
       const rateSource = mapRateSource(d.source);
       if (ACCESSORY_LINES[d.key]) {
         breakdown.push({ ...ACCESSORY_LINES[d.key], adjustment: -d.amount, rateSource });
+      } else if (d.key === 'device_age') {
+        const label = d.band ? DEVICE_AGE_LABELS[d.band] : 'Phone age';
+        breakdown.push({
+          component: `Phone age: ${label}`,
+          description: `${d.pct}% taken off for a phone that is ${label.toLowerCase()} old`,
+          adjustment: -d.amount,
+          rateSource,
+        });
       } else if (d.key === input.screenKey) {
         screenDeduction = d.amount;
         breakdown.push({

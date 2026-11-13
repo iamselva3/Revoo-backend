@@ -252,6 +252,43 @@ describe('REVOO Backend Integration Tests', () => {
       expect(res.body.data.valuation.finalCalculatedAmount).toBe(75000); // 70000 base + 5000 storage modifier with full accessories pool
       expect(res.body.data.disclaimer).toBeDefined();
     });
+
+    test("POST /api/v1/catalogue/estimate takes off the admin's phone-age %", async () => {
+      const rule = await PricingRuleModel.create({
+        modelId: sampleModelId,
+        basePrice: 70000,
+        version: 2,
+        isActive: true,
+        deductionPercentages: { deviceAge: { BELOW_3_MONTHS: 0, ABOVE_11_MONTHS: 10 } },
+      });
+      try {
+        const quote = (deviceAge: string) =>
+          request(app).post('/api/v1/catalogue/estimate').send({
+            modelId: sampleModelId,
+            variantId: sampleVariantId,
+            basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: false },
+            touchGlassCondition: 'NO_SCRATCH',
+            screenDisplayCondition: 'NO_SPOT',
+            backPanelCondition: 'NO_DEFECTS',
+            sidePanelCondition: 'NO_DEFECTS',
+            hasOriginalBox: true,
+            hasOriginalCharger: true,
+            hasValidBill: true,
+            deviceAge,
+          });
+
+        const old = await quote('ABOVE_11_MONTHS');
+        expect(old.status).toBe(200);
+        expect(old.body.data.finalPrice).toBe(75000 - 7500);
+        const line = old.body.data.valuation.breakdown.find((b: any) => b.component === 'Phone age: Above 11 months');
+        expect(line?.adjustment).toBe(-7500);
+
+        const recent = await quote('BELOW_3_MONTHS');
+        expect(recent.body.data.finalPrice).toBe(75000);
+      } finally {
+        await PricingRuleModel.deleteOne({ _id: rule._id });
+      }
+    });
   });
 
   describe('Customer Google OAuth Authentication', () => {
