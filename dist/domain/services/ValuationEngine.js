@@ -315,7 +315,19 @@ class ValuationEngine {
             minScrapPrice: rule.customScrapFloor ?? rule.minScrapPrice ?? rule.min_scrap_price,
             customDeductions: rule.customDeductions ?? rule.specific_deductions_inr,
             customPercentages,
+            accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(rule),
         };
+    }
+    /**
+     * Admin's per-model "taken off when missing" amounts for the charger and box
+     * (stored as PricingRule.deductions.accessoriesBonus for compatibility).
+     */
+    static accessoryDeductionsFromRule(rule) {
+        const acc = rule?.deductions?.accessoriesBonus;
+        if (!acc)
+            return undefined;
+        const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
+        return { original_charger: num(acc.hasOriginalCharger), box_same_imei: num(acc.hasOriginalBox) };
     }
     /**
      * Master Pricing Calculation
@@ -353,9 +365,17 @@ class ValuationEngine {
                 return 'admin_percentage';
             return src;
         };
+        const ACCESSORY_LINES = {
+            missing_original_charger: { component: 'Original charger not included', description: 'The price includes the original charger' },
+            missing_box_same_imei: { component: 'Box with same IMEI not included', description: 'The price includes the original box with matching IMEI' },
+            missing_bill_document: { component: 'No bill with same IMEI', description: 'Valid invoice with matching IMEI not provided' },
+        };
         for (const d of engineResult.deductions) {
             const rateSource = mapRateSource(d.source);
-            if (d.key === input.screenKey) {
+            if (ACCESSORY_LINES[d.key]) {
+                breakdown.push({ ...ACCESSORY_LINES[d.key], adjustment: -d.amount, rateSource });
+            }
+            else if (d.key === input.screenKey) {
                 screenDeduction = d.amount;
                 breakdown.push({
                     component: 'Screen & Touch Condition',
@@ -433,54 +453,20 @@ class ValuationEngine {
                 rateSource: 'floor_protection',
             });
         }
-        // Accessories breakdown
-        if (input.accessories.original_charger) {
-            breakdown.push({
-                component: 'Original Charger',
-                description: 'Included authentic charger bonus',
-                adjustment: exports.CHARGER_BONUS,
-                rateSource: 'bonus',
-            });
-        }
-        else if (engineResult.rawBodyPrice !== null && engineResult.rawBodyPrice >= engineResult.scrapFloor) {
-            breakdown.push({
-                component: 'Missing Original Charger',
-                description: 'Authentic charger not included with device',
-                adjustment: -exports.CHARGER_BONUS,
-                rateSource: 'bonus',
-            });
-        }
-        if (input.accessories.box_same_imei) {
-            breakdown.push({
-                component: 'Original Box',
-                description: 'Included original box with matching IMEI bonus',
-                adjustment: exports.BOX_BONUS,
-                rateSource: 'bonus',
-            });
-        }
-        else if (engineResult.rawBodyPrice !== null && engineResult.rawBodyPrice >= engineResult.scrapFloor) {
-            breakdown.push({
-                component: 'Missing Original Box',
-                description: 'Box with matching IMEI not included with device',
-                adjustment: -exports.BOX_BONUS,
-                rateSource: 'bonus',
-            });
-        }
-        if (input.accessories.bill_same_imei) {
-            breakdown.push({
-                component: 'Valid GST Bill',
-                description: 'Document compliance bonus',
-                adjustment: exports.BILL_BONUS,
-                rateSource: 'bonus',
-            });
-        }
-        else if (engineResult.rawBodyPrice !== null && engineResult.rawBodyPrice >= engineResult.scrapFloor) {
-            breakdown.push({
-                component: 'Missing Valid Bill',
-                description: 'Valid invoice with matching IMEI not included with device',
-                adjustment: -exports.BILL_BONUS,
-                rateSource: 'bonus',
-            });
+        // Accessory extras only apply at scrap value (phone doesn't switch on, or its price fell to the
+        // scrap floor). Otherwise the price already includes them and missing ones are deductions above.
+        const atScrapValue = !input.phone_working_condition ||
+            (engineResult.rawBodyPrice !== null && engineResult.rawBodyPrice < engineResult.scrapFloor);
+        if (atScrapValue) {
+            const extras = [
+                [input.accessories.original_charger, 'Original Charger', 'Included authentic charger', exports.CHARGER_BONUS],
+                [input.accessories.box_same_imei, 'Original Box', 'Included original box with matching IMEI', exports.BOX_BONUS],
+                [input.accessories.bill_same_imei, 'Valid GST Bill', 'Valid invoice with matching IMEI', exports.BILL_BONUS],
+            ];
+            for (const [present, component, description, amount] of extras) {
+                if (present)
+                    breakdown.push({ component, description, adjustment: amount, rateSource: 'bonus' });
+            }
         }
         const itemizedBreakdown = {
             basePrice: engineResult.basePrice,
@@ -495,9 +481,9 @@ class ValuationEngine {
             warrantyDeduction,
             totalDefectDeductions: engineResult.totalDeductions,
             selectedAccBonus: engineResult.selectedAccBonus,
-            chargerBonus: input.accessories.original_charger ? exports.CHARGER_BONUS : 0,
-            boxBonus: input.accessories.box_same_imei ? exports.BOX_BONUS : 0,
-            billBonus: input.accessories.bill_same_imei ? exports.BILL_BONUS : 0,
+            chargerBonus: atScrapValue && input.accessories.original_charger ? exports.CHARGER_BONUS : 0,
+            boxBonus: atScrapValue && input.accessories.box_same_imei ? exports.BOX_BONUS : 0,
+            billBonus: atScrapValue && input.accessories.bill_same_imei ? exports.BILL_BONUS : 0,
             finalPrice: engineResult.finalPrice,
         };
         const warrantyVoided = engineResult.deductions.some((d) => d.key === 'out_of_warranty_or_no_bill_penalty') ||

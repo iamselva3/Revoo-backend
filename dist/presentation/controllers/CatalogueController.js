@@ -241,6 +241,7 @@ class CatalogueController {
                 minScrapPrice: pricingRule?.minScrapPrice ?? pricingRule?.customScrapFloor,
                 customDeductions: pricingRule?.customDeductions ?? pricingRule?.specific_deductions_inr,
                 customPercentages: pricingRule?.customPercentages,
+                accessoryDeductions: ValuationEngine_js_1.ValuationEngine.accessoryDeductionsFromRule(pricingRule),
             };
             // STEP 4: Map app's answers to engine's input object
             const engineInput = ValuationEngine_js_1.ValuationEngine.mapConditionToEngineInput(fullCondition);

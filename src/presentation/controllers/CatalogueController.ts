@@ -283,6 +283,7 @@ export class CatalogueController {
         minScrapPrice: (pricingRule as any)?.minScrapPrice ?? (pricingRule as any)?.customScrapFloor,
         customDeductions: (pricingRule as any)?.customDeductions ?? (pricingRule as any)?.specific_deductions_inr,
         customPercentages: (pricingRule as any)?.customPercentages,
+        accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(pricingRule),
       };
 
       // STEP 4: Map app's answers to engine's input object

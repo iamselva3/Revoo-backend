@@ -22,12 +22,12 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     // - Minor Panel Scratches (-3636)
     // - Battery 83% (-7272)
     // - Camera Glass Broken (-8181) [Triggers Warranty Void]
-    // - Charger (+250) + Box (+150) + Bill (+210) = +610
+    // - Charger + Box + Bill all handed over (nothing deducted for accessories)
     // Warranty Void deduction: -16362 (18% of 90900)
     // Total Deductions = 56358 + 3636 + 7272 + 8181 + 16362 = 91809
-    // RawBodyPrice = 90900 - 610 - 91809 = -1519
-    // ClampedBodyPrice = Math.max(2000, -1519) = 2000
-    // FinalPrice = 2000 + 610 = 2610
+    // RawBodyPrice = 90900 - 91809 = -909  -> below the scrap floor
+    // At scrap value the accessory extras apply (like a phone that doesn't switch on):
+    // FinalPrice = 2000 + 250 + 150 + 210 = 2610
     const condition: DeclaredCondition = {
       phone_working_condition: true,
       screen_condition: 'touch_screen_not_working',
@@ -48,7 +48,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.itemizedBreakdown.batteryDeduction).toBe(7272);
     expect(result.itemizedBreakdown.hardwareDeductions).toBe(8181);
     expect(result.itemizedBreakdown.warrantyDeduction).toBe(16362);
-    expect(result.rawBodyPrice).toBe(-1519);
+    expect(result.rawBodyPrice).toBe(-909);
     expect(result.clampedBodyPrice).toBe(2000);
     expect(result.selectedAccBonus).toBe(610);
     expect(result.finalPrice).toBe(2610);
@@ -57,10 +57,8 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
 
   test('Scenario B: Flawless phone with all accessories stays within Base Price', () => {
     // BasePrice = 90900
-    // Total Deductions = 0, User has Charger + Box + Bill (+610)
-    // RawBodyPrice = 90900 - 610 - 0 = 90290
-    // ClampedBodyPrice = Math.max(2000, 90290) = 90290
-    // FinalPrice = 90290 + 610 = 90900
+    // Total Deductions = 0, User has Charger + Box + Bill: the price includes them
+    // FinalPrice = 90900 (the full base price, nothing added on top)
     const condition: DeclaredCondition = {
       phone_working_condition: true,
       screen_condition: 'flawless',
@@ -75,19 +73,18 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.basePrice).toBe(90900);
     expect(result.warrantyVoided).toBe(false);
     expect(result.totalDeductions).toBe(0);
-    expect(result.rawBodyPrice).toBe(90290);
-    expect(result.clampedBodyPrice).toBe(90290);
-    expect(result.selectedAccBonus).toBe(610);
+    expect(result.rawBodyPrice).toBe(90900);
+    expect(result.clampedBodyPrice).toBe(90900);
+    expect(result.selectedAccBonus).toBe(0);
     expect(result.finalPrice).toBe(90900);
+    expect(result.breakdown.some((b) => b.adjustment > 0 && b.component !== 'Base Price')).toBe(false);
     expect(result.finalCalculatedAmount).toBe(90900);
   });
 
-  test('Scenario C: Flawless phone missing charger deducts exactly charger value (-250)', () => {
-    // BasePrice = 90900
-    // Total Deductions = 0, User has Box (+150) + Bill (+210) = 360
-    // RawBodyPrice = 90900 - 610 - 0 = 90290
-    // ClampedBodyPrice = Math.max(2000, 90290) = 90290
-    // FinalPrice = 90290 + 360 = 90650
+  test('Scenario C: Flawless phone missing charger has the charger amount taken off (default ₹500)', () => {
+    // BasePrice = 90900, Box + Bill handed over, no charger
+    // Charger deduction = min(500, 5% of 90900 = 4545) = 500
+    // FinalPrice = 90900 - 500 = 90400
     const condition: DeclaredCondition = {
       phone_working_condition: true,
       screen_condition: 'flawless',
@@ -99,10 +96,39 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
 
     const result = ValuationEngine.calculate(iphone18ProMaxRule, condition);
 
-    expect(result.totalDeductions).toBe(0);
-    expect(result.selectedAccBonus).toBe(360);
-    expect(result.finalPrice).toBe(90650);
-    expect(result.basePrice - result.finalPrice).toBe(250); // Exactly ₹250 less
+    expect(result.totalDeductions).toBe(500);
+    expect(result.selectedAccBonus).toBe(0);
+    expect(result.finalPrice).toBe(90400);
+    expect(result.breakdown.find((b) => b.component === 'Original charger not included')?.adjustment).toBe(-500);
+  });
+
+  test("Per-model admin amounts are taken off for each missing accessory", () => {
+    const rule = { ...iphone18ProMaxRule, deductions: { accessoriesBonus: { hasOriginalCharger: 1200, hasOriginalBox: 800 } } } as any;
+    const condition: DeclaredCondition = {
+      phone_working_condition: true,
+      screen_condition: 'flawless',
+      body_condition: 'no_scratches_flawless',
+      battery_health: 'above_90_percent',
+      hardware_defects: [],
+      accessories: ['bill_same_imei'], // no charger, no box
+    };
+    const result = ValuationEngine.calculate(rule, condition);
+    expect(result.finalPrice).toBe(90900 - 1200 - 800);
+    expect(result.breakdown.find((b) => b.component === 'Box with same IMEI not included')?.adjustment).toBe(-800);
+  });
+
+  test('A missing accessory never costs more than 5% of a cheap phone', () => {
+    const cheap = { ...iphone18ProMaxRule, basePrice: 4000, minScrapPrice: 100 } as any;
+    const condition: DeclaredCondition = {
+      phone_working_condition: true,
+      screen_condition: 'flawless',
+      body_condition: 'no_scratches_flawless',
+      battery_health: 'above_90_percent',
+      hardware_defects: [],
+      accessories: ['bill_same_imei'],
+    };
+    // default ₹500 each, capped at 5% of 4000 = 200 each
+    expect(ValuationEngine.calculate(cheap, condition).finalPrice).toBe(3600);
   });
 
   test('Gatekeeper Rule: Phone does not turn on skips all defect deductions', () => {
@@ -202,8 +228,8 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
       const result = ValuationEngine.calculate(iphone18ProMaxRule, condition);
       expect(result.warrantyVoided).toBe(true);
       expect(result.itemizedBreakdown.warrantyDeduction).toBe(Math.round(90900 * 0.18));
-      // Compliance bonus +210 for GST bill is still preserved
-      expect(result.itemizedBreakdown.billBonus).toBe(210);
+      // The bill was provided, so nothing is taken off for it
+      expect(result.breakdown.some((b) => b.component === 'No bill with same IMEI')).toBe(false);
     }
   });
 
@@ -219,6 +245,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.warrantyVoided).toBe(true);
     expect(result.itemizedBreakdown.warrantyDeduction).toBe(Math.round(90900 * 0.18));
     expect(result.itemizedBreakdown.billBonus).toBe(0);
+    expect(result.breakdown.find((b) => b.component === 'No bill with same IMEI')?.adjustment).toBe(-210);
   });
 
   test('Calculates default scrap floor via multiplier 0.022 when custom floor is omitted', () => {

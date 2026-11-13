@@ -1,8 +1,18 @@
 // pricingEngine.js
 // Buyback pricing: global default % with per-model admin overrides.
 
+// Phones that don't switch on are bought at scrap value, plus these small extras for accessories.
 const ACC_BONUS = { original_charger: 250, box_same_imei: 150, bill_same_imei: 210 };
-const MAX_ACC_POOL = Object.values(ACC_BONUS).reduce((a, b) => a + b, 0); // 610
+
+// Working phones: the price assumes the original charger and box are handed over; each missing one
+// is taken off. Per model the admin sets the amount (PricingRule.deductions.accessoriesBonus);
+// it is never more than MISSING_ACCESSORY_MAX_PCT of the phone's price, so cheap phones aren't
+// hit disproportionately.
+const DEFAULT_MISSING_ACCESSORY = { original_charger: 500, box_same_imei: 500 };
+const MISSING_ACCESSORY_MAX_PCT = 0.05;
+const MISSING_ACCESSORY_KEYS = { original_charger: 'missing_original_charger', box_same_imei: 'missing_box_same_imei' };
+// No bill with the same IMEI: the same ₹210 as before (on top of the no-bill warranty penalty).
+const NO_BILL_DEDUCTION = ACC_BONUS.bill_same_imei;
 
 const DEFAULT_PCT = {
   // Screen & touch (single select)
@@ -69,7 +79,8 @@ function resolveDeduction(key, basePrice, phone) {
 }
 
 /**
- * @param {object} phone  { basePrice, minScrapPrice?, customDeductions?, customPercentages? }
+ * @param {object} phone  { basePrice, minScrapPrice?, customDeductions?, customPercentages?,
+ *                          accessoryDeductions?: { original_charger?: number, box_same_imei?: number } }
  * @param {object} input  {
  *   phone_working_condition: boolean,
  *   screenKey: string, bodyKey: string, batteryKey: string,
@@ -95,12 +106,12 @@ function calculatePrice(phone, input, config = {}) {
   const scrapFloor = phone.minScrapPrice || Math.round(basePrice * 0.022);
 
   const result = {
-    basePrice, scrapFloor, maxAccPool: MAX_ACC_POOL, selectedAccBonus,
+    basePrice, scrapFloor, maxAccPool: 0, selectedAccBonus,
     deductions: [], totalDeductions: 0, rawBodyPrice: null,
     clampedBodyPrice: null, finalPrice: null, rule: null,
   };
 
-  // Gatekeeper: phone does not turn on
+  // Gatekeeper: phone does not turn on (scrap value + accessory extras)
   if (input.phone_working_condition === false) {
     result.rule = 'gatekeeper_not_working';
     result.finalPrice = scrapFloor + selectedAccBonus;
@@ -134,13 +145,37 @@ function calculatePrice(phone, input, config = {}) {
     result.deductions.push({ key, ...d, reason: voided ? 'physical_damage' : 'no_bill' });
   }
 
+  // Accessories: the base price includes them; take off each one that's missing
+  for (const [accKey, deductionKey] of Object.entries(MISSING_ACCESSORY_KEYS)) {
+    if (acc[accKey] === true) continue;
+    const configured = phone.accessoryDeductions?.[accKey];
+    const wanted = typeof configured === 'number' && configured >= 0 ? configured : DEFAULT_MISSING_ACCESSORY[accKey];
+    const amount = Math.min(Math.round(wanted), Math.round(basePrice * MISSING_ACCESSORY_MAX_PCT));
+    if (amount > 0) {
+      result.deductions.push({ key: deductionKey, amount, source: typeof configured === 'number' ? 'admin_flat' : 'default_flat' });
+    }
+  }
+  if (acc.bill_same_imei !== true) {
+    result.deductions.push({ key: 'missing_bill_document', amount: NO_BILL_DEDUCTION, source: 'default_flat' });
+  }
+
   result.totalDeductions = result.deductions.reduce((s, d) => s + d.amount, 0);
-  result.rawBodyPrice = basePrice - MAX_ACC_POOL - result.totalDeductions;
+  result.rawBodyPrice = basePrice - result.totalDeductions;
   result.clampedBodyPrice = Math.max(scrapFloor, result.rawBodyPrice);
-  result.finalPrice = Math.min(basePrice, result.clampedBodyPrice + selectedAccBonus);
+  if (result.rawBodyPrice >= scrapFloor) {
+    // Normal case: the price already includes the accessories (missing ones were deducted)
+    result.selectedAccBonus = 0;
+    result.finalPrice = Math.min(basePrice, result.rawBodyPrice);
+  } else {
+    // Down at scrap value: same as a phone that doesn't switch on -- scrap + accessory extras
+    result.finalPrice = Math.min(basePrice, scrapFloor + selectedAccBonus);
+  }
   result.rule = 'active_phone_formula';
   return result;
 }
 
-module.exports = { calculatePrice, DEFAULT_PCT, WARRANTY_VOID_KEYS, ACC_BONUS };
+module.exports = {
+  calculatePrice, DEFAULT_PCT, WARRANTY_VOID_KEYS, ACC_BONUS,
+  DEFAULT_MISSING_ACCESSORY, MISSING_ACCESSORY_MAX_PCT, MISSING_ACCESSORY_KEYS,
+};
 
