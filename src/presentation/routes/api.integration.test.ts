@@ -688,5 +688,53 @@ describe('REVOO Backend Integration Tests', () => {
       expect(res.body.data.metrics).toBeDefined();
     });
   });
+
+  describe('Phone age % set on the model', () => {
+    const quote = () =>
+      request(app).post('/api/v1/catalogue/estimate').send({
+        modelId: sampleModelId,
+        variantId: sampleVariantId,
+        basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: true },
+        touchGlassCondition: 'NO_SCRATCH',
+        screenDisplayCondition: 'NO_SPOT',
+        backPanelCondition: 'NO_DEFECTS',
+        sidePanelCondition: 'NO_DEFECTS',
+        hasOriginalBox: true,
+        hasOriginalCharger: true,
+        hasValidBill: true,
+        deviceAge: 'ABOVE_11_MONTHS',
+      });
+
+    afterAll(async () => {
+      await SmartphoneModel.updateOne({ _id: sampleModelId }, { $unset: { deviceAgeDeductions: 1 } });
+    });
+
+    test('Saving the model editor stores the % (cleaned up) and the quote uses it', async () => {
+      const res = await request(app)
+        .put(`/api/v1/catalogue/admin/models/${sampleModelId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ deviceAgeDeductions: { BELOW_3_MONTHS: 150, '6_TO_11_MONTHS': 'abc', ABOVE_11_MONTHS: 12 } });
+      expect(res.status).toBe(200);
+      expect(res.body.data.deviceAgeDeductions).toEqual({ BELOW_3_MONTHS: 90, ABOVE_11_MONTHS: 12 });
+
+      const q = await quote();
+      expect(q.body.data.finalPrice).toBe(75000 - 9000); // 12% of 75000
+
+      const rule = await request(app).get(`/api/v1/pricing/model/${sampleModelId}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(rule.body.data.deductionPercentages.deviceAge.ABOVE_11_MONTHS).toBe(12);
+    });
+
+    test('Saving on the Pricing Engine page updates the same numbers', async () => {
+      const res = await request(app)
+        .put(`/api/v1/pricing/model/${sampleModelId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ basePrice: 70000, deductionPercentages: { deviceAge: { BELOW_3_MONTHS: 0, '3_TO_6_MONTHS': 2, '6_TO_11_MONTHS': 4, ABOVE_11_MONTHS: 5 } } });
+      expect(res.status).toBe(200);
+
+      const model: any = await SmartphoneModel.findById(sampleModelId).lean();
+      expect(model.deviceAgeDeductions.ABOVE_11_MONTHS).toBe(5);
+      expect((await quote()).body.data.finalPrice).toBe(75000 - 3750); // 5% of 75000
+    });
+  });
 });
 

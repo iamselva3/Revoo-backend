@@ -284,7 +284,10 @@ export class CatalogueController {
         customDeductions: (pricingRule as any)?.customDeductions ?? (pricingRule as any)?.specific_deductions_inr,
         customPercentages: (pricingRule as any)?.customPercentages,
         accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(pricingRule),
-        deviceAgePercentages: ValuationEngine.deviceAgePercentagesFromRule(pricingRule),
+        deviceAgePercentages: ValuationEngine.deviceAgePercentagesFromRule({
+          ...(pricingRule || {}),
+          deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
+        }),
       };
 
       // STEP 4: Map app's answers to engine's input object
@@ -305,6 +308,7 @@ export class CatalogueController {
       const valuation = ValuationEngine.calculate(
         {
           ...(pricingRule || {}),
+          deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
           basePrice: effectiveBasePrice,
           storagePriceAdjustment: storageModifier,
           version: pricingRule?.version || 1,
@@ -447,6 +451,9 @@ export class CatalogueController {
 
   public static async adminCreateModel(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
+      if (req.body && 'deviceAgeDeductions' in req.body) {
+        req.body.deviceAgeDeductions = ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
+      }
       const model = await SmartphoneModel.create(req.body);
 
       // Create default base pricing rule for this model
@@ -500,6 +507,9 @@ export class CatalogueController {
   public static async adminUpdateModel(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
+      if (req.body && 'deviceAgeDeductions' in req.body) {
+        req.body.deviceAgeDeductions = ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
+      }
       const model = await SmartphoneModel.findByIdAndUpdate(id, req.body, { new: true });
       if (!model) return next(new AppError('Model not found', 404));
 

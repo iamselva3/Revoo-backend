@@ -186,6 +186,7 @@ class BuybackRequestController {
                 minScrapPrice: pricingRule.minScrapPrice,
                 deductions: pricingRule.deductions,
                 deductionPercentages: pricingRule.deductionPercentages,
+                deviceAgeDeductions: model.deviceAgeDeductions,
                 version: pricingRule.version,
                 isActive: pricingRule.isActive,
                 effectiveFrom: pricingRule.effectiveFrom,

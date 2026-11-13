@@ -340,14 +340,26 @@ export class ValuationEngine {
     };
   }
 
-  /** Admin's per-model "% taken off" for each phone-age band (PricingRule.deductionPercentages.deviceAge). */
+  /**
+   * Admin's per-model "% taken off" for each phone-age band. The model's own values
+   * (SmartphoneModel.deviceAgeDeductions, passed in as rule.deviceAgeDeductions) win; older
+   * rules may still carry them as PricingRule.deductionPercentages.deviceAge.
+   */
   public static deviceAgePercentagesFromRule(rule: any): Partial<Record<DeviceAgeBand, number>> | undefined {
-    const raw = rule?.deductionPercentages?.deviceAge;
+    const fromModel = ValuationEngine.sanitizeDeviceAgePercentages(rule?.deviceAgeDeductions);
+    if (fromModel && Object.keys(fromModel).length > 0) return fromModel;
+    return ValuationEngine.sanitizeDeviceAgePercentages(rule?.deductionPercentages?.deviceAge);
+  }
+
+  /** Keeps only valid bands with a number between 0 and 90 (whole %, 5 = 5%). */
+  public static sanitizeDeviceAgePercentages(value: any): Partial<Record<DeviceAgeBand, number>> | undefined {
+    const raw = value && typeof value.toObject === 'function' ? value.toObject() : value;
     if (!raw || typeof raw !== 'object') return undefined;
     const out: Partial<Record<DeviceAgeBand, number>> = {};
     for (const band of DEVICE_AGE_BANDS) {
+      if (raw[band] === null || raw[band] === undefined || raw[band] === '') continue;
       const v = Number(raw[band]);
-      if (raw[band] !== null && raw[band] !== '' && Number.isFinite(v) && v >= 0) out[band] = v;
+      if (Number.isFinite(v) && v >= 0) out[band] = Math.min(v, 90);
     }
     return out;
   }

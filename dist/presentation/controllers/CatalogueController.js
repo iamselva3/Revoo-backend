@@ -242,7 +242,10 @@ class CatalogueController {
                 customDeductions: pricingRule?.customDeductions ?? pricingRule?.specific_deductions_inr,
                 customPercentages: pricingRule?.customPercentages,
                 accessoryDeductions: ValuationEngine_js_1.ValuationEngine.accessoryDeductionsFromRule(pricingRule),
-                deviceAgePercentages: ValuationEngine_js_1.ValuationEngine.deviceAgePercentagesFromRule(pricingRule),
+                deviceAgePercentages: ValuationEngine_js_1.ValuationEngine.deviceAgePercentagesFromRule({
+                    ...(pricingRule || {}),
+                    deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
+                }),
             };
             // STEP 4: Map app's answers to engine's input object
             const engineInput = ValuationEngine_js_1.ValuationEngine.mapConditionToEngineInput(fullCondition);
@@ -257,6 +260,7 @@ class CatalogueController {
             // Build structured breakdown for mobile app & UI display
             const valuation = ValuationEngine_js_1.ValuationEngine.calculate({
                 ...(pricingRule || {}),
+                deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
                 basePrice: effectiveBasePrice,
                 storagePriceAdjustment: storageModifier,
                 version: pricingRule?.version || 1,
@@ -390,6 +394,9 @@ class CatalogueController {
     }
     static async adminCreateModel(req, res, next) {
         try {
+            if (req.body && 'deviceAgeDeductions' in req.body) {
+                req.body.deviceAgeDeductions = ValuationEngine_js_1.ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
+            }
             const model = await SmartphoneModel_js_1.SmartphoneModel.create(req.body);
             // Create default base pricing rule for this model
             await PricingRule_js_1.PricingRuleModel.create({
@@ -440,6 +447,9 @@ class CatalogueController {
     static async adminUpdateModel(req, res, next) {
         try {
             const { id } = req.params;
+            if (req.body && 'deviceAgeDeductions' in req.body) {
+                req.body.deviceAgeDeductions = ValuationEngine_js_1.ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
+            }
             const model = await SmartphoneModel_js_1.SmartphoneModel.findByIdAndUpdate(id, req.body, { new: true });
             if (!model)
                 return next(new types_js_1.AppError('Model not found', 404));

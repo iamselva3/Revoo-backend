@@ -6,6 +6,18 @@ import { SmartphoneModel } from '../../infrastructure/database/models/Smartphone
 import { AppError } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
+import { ValuationEngine } from '../../domain/services/ValuationEngine.js';
+
+/**
+ * Phone-age % live on the model (SmartphoneModel.deviceAgeDeductions) so the model editor and this
+ * page edit the same numbers. This page shows them as deductionPercentages.deviceAge.
+ */
+const modelDeviceAge = async (modelId: unknown) => {
+  if (!modelId || !mongoose.Types.ObjectId.isValid(String(modelId))) return undefined;
+  const model: any = await SmartphoneModel.findById(modelId).select('deviceAgeDeductions').lean();
+  const age = ValuationEngine.sanitizeDeviceAgePercentages(model?.deviceAgeDeductions);
+  return age && Object.keys(age).length > 0 ? age : undefined;
+};
 
 export class PricingController {
   public static async getPricingRuleForModel(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
@@ -31,6 +43,7 @@ export class PricingController {
         }
 
         const modelBasePrice = model?.basePrice || 45000;
+        const deviceAge = await modelDeviceAge(model?._id);
         return res.status(200).json({
           success: true,
           data: {
@@ -99,6 +112,7 @@ export class PricingController {
               accessoriesBonus: { hasOriginalBox: 500, hasOriginalCharger: 500 },
             },
             deductionPercentages: {
+              ...(deviceAge ? { deviceAge } : {}),
               // Legacy
               display: { FLAWLESS: 0, MINOR_SCRATCHES: 8, DEEP_SCRATCHES: 15, CRACKED_GLASS: 30, BROKEN_OR_DEAD_PIXELS: 50 },
               body: { FLAWLESS: 0, MINOR_SIGNS_OF_USE: 4, DENTED_OR_SCRATCHED: 10, BENT_OR_CRACKED_BACK: 20 },
@@ -207,6 +221,9 @@ export class PricingController {
         };
       }
 
+      const deviceAge = await modelDeviceAge(ruleObj.modelId);
+      if (deviceAge) ruleObj.deductionPercentages = { ...(ruleObj.deductionPercentages || {}), deviceAge };
+
       res.status(200).json({ success: true, data: ruleObj });
     } catch (err) {
       next(err);
@@ -259,6 +276,12 @@ export class PricingController {
         effectiveFrom: new Date(),
         updatedByAdminId: req.admin?.id,
       } as any);
+
+      // Phone-age % are kept on the model (shared with the model editor)
+      const deviceAge = ValuationEngine.sanitizeDeviceAgePercentages(deductionPercentages?.deviceAge);
+      if (deviceAge && mongoose.Types.ObjectId.isValid(String(modelId))) {
+        await SmartphoneModel.updateOne({ _id: modelId }, { $set: { deviceAgeDeductions: deviceAge } });
+      }
 
       // Record detailed pricing history audit
       await PricingHistoryModel.create({

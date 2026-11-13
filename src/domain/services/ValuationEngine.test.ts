@@ -174,6 +174,13 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
       expect(result.finalPrice).toBe(2000);
     });
 
+    test("the model's own % win over older values on the pricing rule", () => {
+      const rule = { ...ageRule, deviceAgeDeductions: { ABOVE_11_MONTHS: 20 } };
+      expect(ValuationEngine.calculate(rule, perfect('ABOVE_11_MONTHS')).finalPrice).toBe(90900 - 18180);
+      // empty model values fall back to the rule
+      expect(ValuationEngine.calculate({ ...ageRule, deviceAgeDeductions: {} }, perfect('ABOVE_11_MONTHS')).finalPrice).toBe(90900 - 9090);
+    });
+
     test('accepts the age in any common spelling', () => {
       expect(ValuationEngine.normalizeDeviceAge('3 to 6 months')).toBe('3_TO_6_MONTHS');
       expect(ValuationEngine.normalizeDeviceAge('above-11-months')).toBe('ABOVE_11_MONTHS');

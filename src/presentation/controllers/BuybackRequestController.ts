@@ -203,6 +203,7 @@ export class BuybackRequestController {
           minScrapPrice: (pricingRule as any).minScrapPrice,
           deductions: pricingRule.deductions as any,
           deductionPercentages: (pricingRule as any).deductionPercentages,
+          deviceAgeDeductions: model.deviceAgeDeductions,
           version: pricingRule.version,
           isActive: pricingRule.isActive,
           effectiveFrom: pricingRule.effectiveFrom,
