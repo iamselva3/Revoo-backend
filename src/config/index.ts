@@ -40,7 +40,7 @@ export const config = {
       : parseInt(process.env.SMTP_PORT || '587', 10) === 465,
     smtpUser: process.env.SMTP_USER || '',
     smtpPass: process.env.SMTP_PASS || '',
-    from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'support@genie.in',
+    from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'genietnsupport@gmail.com',
     fromName: process.env.EMAIL_FROM_NAME || 'Genie',
   },
   google: {
