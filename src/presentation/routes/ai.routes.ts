@@ -7,3 +7,4 @@ router.post('/chat', AiController.chat);
 router.get('/status', AiController.status);
 
 export default router;
+
