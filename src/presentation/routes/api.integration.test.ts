@@ -253,6 +253,38 @@ describe('REVOO Backend Integration Tests', () => {
       expect(res.body.data.disclaimer).toBeDefined();
     });
 
+    test("POST /api/v1/catalogue/estimate takes off the admin's display-not-original %", async () => {
+      const rule = await PricingRuleModel.create({
+        modelId: sampleModelId,
+        basePrice: 70000,
+        version: 3,
+        isActive: true,
+        deductionPercentages: { basicQuestions: { displayNotOriginal: 20 } },
+      });
+      try {
+        const quote = (isDisplayOriginal: boolean) =>
+          request(app).post('/api/v1/catalogue/estimate').send({
+            modelId: sampleModelId,
+            variantId: sampleVariantId,
+            basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal, hasValidWarranty: false },
+            touchGlassCondition: 'NO_SCRATCH',
+            screenDisplayCondition: 'NO_SPOT',
+            backPanelCondition: 'NO_DEFECTS',
+            sidePanelCondition: 'NO_DEFECTS',
+            hasOriginalBox: true,
+            hasOriginalCharger: true,
+            hasValidBill: true,
+          });
+        const replaced = await quote(false);
+        expect(replaced.status).toBe(200);
+        expect(replaced.body.data.finalPrice).toBe(75000 - 15000);
+        expect(replaced.body.data.valuation.breakdown.find((b: any) => b.component === 'Display not original')?.adjustment).toBe(-15000);
+        expect((await quote(true)).body.data.finalPrice).toBe(75000);
+      } finally {
+        await PricingRuleModel.deleteOne({ _id: rule._id });
+      }
+    });
+
     test("POST /api/v1/catalogue/estimate takes off the admin's phone-age %", async () => {
       const rule = await PricingRuleModel.create({
         modelId: sampleModelId,

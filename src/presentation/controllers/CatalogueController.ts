@@ -266,10 +266,6 @@ export class CatalogueController {
       if (hf.vibratorNotWorking || fullCondition.vibratorNotWorking) {
         unmappedFields.push('vibratorNotWorking (no deduction rate in Dofy model)');
       }
-      const bq = (fullCondition.basicQuestions || {}) as any;
-      if (bq.isDisplayOriginal === false || fullCondition.isDisplayOriginal === false) {
-        unmappedFields.push('isDisplayOriginal=false (display original check has no separate deduction in Dofy model)');
-      }
 
       if (unmappedFields.length > 0) {
         console.warn(`[PRICING ENGINE WARNING] Unmapped fields received in estimate request: ${unmappedFields.join(', ')}`);
@@ -288,6 +284,7 @@ export class CatalogueController {
           ...(pricingRule || {}),
           deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
         }),
+        displayNotOriginalPct: ValuationEngine.displayNotOriginalPctFromRule(pricingRule),
       };
 
       // STEP 4: Map app's answers to engine's input object
@@ -309,6 +306,7 @@ export class CatalogueController {
         {
           ...(pricingRule || {}),
           deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
+          ruleBasePrice: pricingRule?.basePrice,
           basePrice: effectiveBasePrice,
           storagePriceAdjustment: storageModifier,
           version: pricingRule?.version || 1,

@@ -7,6 +7,8 @@ export interface PhonePricingData {
   accessoryDeductions?: { original_charger?: number; box_same_imei?: number };
   /** % of the price taken off per phone-age band (admin, per model; whole numbers, 5 = 5%). */
   deviceAgePercentages?: Partial<Record<DeviceAgeBand, number>>;
+  /** % of the price taken off when the display is not original (admin, per model; whole %, default 10). */
+  displayNotOriginalPct?: number;
 }
 
 export type DeviceAgeBand = 'BELOW_3_MONTHS' | '3_TO_6_MONTHS' | '6_TO_11_MONTHS' | 'ABOVE_11_MONTHS';
@@ -24,6 +26,8 @@ export interface PricingEngineInput {
   };
   /** How old the phone is (customer's answer). Missing = no age deduction. */
   deviceAge?: DeviceAgeBand;
+  /** Customer said the display is not original (replaced outside an authorised centre). */
+  displayNotOriginal?: boolean;
 }
 
 export interface PricingEngineConfig {
@@ -67,4 +71,5 @@ export declare const MISSING_ACCESSORY_MAX_PCT: number;
 export declare const MISSING_ACCESSORY_KEYS: { original_charger: string; box_same_imei: string };
 export declare const DEVICE_AGE_BANDS: DeviceAgeBand[];
 export declare const DEVICE_AGE_MAX_PCT: number;
+export declare const DEFAULT_DISPLAY_NOT_ORIGINAL_PCT: number;
 

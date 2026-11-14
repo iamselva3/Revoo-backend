@@ -20,6 +20,11 @@ const NO_BILL_DEDUCTION = ACC_BONUS.bill_same_imei;
 const DEVICE_AGE_BANDS = ['BELOW_3_MONTHS', '3_TO_6_MONTHS', '6_TO_11_MONTHS', 'ABOVE_11_MONTHS'];
 const DEVICE_AGE_MAX_PCT = 90;
 
+// "Is the phone's display original?" answered No (replaced outside an authorised service centre):
+// % of the price taken off. Per model the admin sets it in the Pricing window (Basic working
+// condition -> Display not original); this is the default shown there when nothing is saved.
+const DEFAULT_DISPLAY_NOT_ORIGINAL_PCT = 10;
+
 const DEFAULT_PCT = {
   // Screen & touch (single select)
   flawless: 0,
@@ -87,13 +92,15 @@ function resolveDeduction(key, basePrice, phone) {
 /**
  * @param {object} phone  { basePrice, minScrapPrice?, customDeductions?, customPercentages?,
  *                          accessoryDeductions?: { original_charger?: number, box_same_imei?: number },
- *                          deviceAgePercentages?: { [band]: number }  (whole % per age band) }
+ *                          deviceAgePercentages?: { [band]: number }  (whole % per age band),
+ *                          displayNotOriginalPct?: number  (whole %, default 10) }
  * @param {object} input  {
  *   phone_working_condition: boolean,
  *   screenKey: string, bodyKey: string, batteryKey: string,
  *   hardwareKeys: string[],
  *   accessories: { original_charger, box_same_imei, bill_same_imei }  (booleans),
- *   deviceAge?: 'BELOW_3_MONTHS' | '3_TO_6_MONTHS' | '6_TO_11_MONTHS' | 'ABOVE_11_MONTHS'
+ *   deviceAge?: 'BELOW_3_MONTHS' | '3_TO_6_MONTHS' | '6_TO_11_MONTHS' | 'ABOVE_11_MONTHS',
+ *   displayNotOriginal?: boolean  (customer said the display is not original)
  * }
  * @param {object} [config] { criticalKeys?: string[], criticalIncludesAccessories?: boolean }
  */
@@ -143,6 +150,18 @@ function calculatePrice(phone, input, config = {}) {
   for (const key of keys) {
     const d = resolveDeduction(key, basePrice, phone);
     result.deductions.push({ key, ...d });
+  }
+
+  // Display not original. The question is only asked when the phone and its touchscreen work; a dead
+  // touchscreen is already priced as a display replacement, so it is never charged twice.
+  if (input.displayNotOriginal === true && input.screenKey !== 'touch_screen_not_working') {
+    const configured = phone.displayNotOriginalPct;
+    const isSet = typeof configured === 'number' && Number.isFinite(configured) && configured >= 0;
+    const pct = Math.min(isSet ? configured : DEFAULT_DISPLAY_NOT_ORIGINAL_PCT, 90);
+    const amount = Math.round((basePrice * pct) / 100);
+    if (amount > 0) {
+      result.deductions.push({ key: 'display_not_original', amount, source: isSet ? 'admin_pct' : 'default_pct', pct });
+    }
   }
 
   // Warranty: any physical-damage key OR no bill with matching IMEI
@@ -197,6 +216,6 @@ function calculatePrice(phone, input, config = {}) {
 module.exports = {
   calculatePrice, DEFAULT_PCT, WARRANTY_VOID_KEYS, ACC_BONUS,
   DEFAULT_MISSING_ACCESSORY, MISSING_ACCESSORY_MAX_PCT, MISSING_ACCESSORY_KEYS,
-  DEVICE_AGE_BANDS, DEVICE_AGE_MAX_PCT,
+  DEVICE_AGE_BANDS, DEVICE_AGE_MAX_PCT, DEFAULT_DISPLAY_NOT_ORIGINAL_PCT,
 };
 

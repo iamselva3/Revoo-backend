@@ -300,7 +300,13 @@ export class ValuationEngine {
         bill_same_imei: !!bill_same_imei,
       },
       deviceAge: ValuationEngine.normalizeDeviceAge(c.deviceAge ?? c.device_age ?? c.basicQuestions?.deviceAge),
+      displayNotOriginal: ValuationEngine.isNo(c.basicQuestions?.isDisplayOriginal ?? c.isDisplayOriginal),
     };
+  }
+
+  /** true for an explicit "No" (false / 'false'); anything else (yes, missing) is not a No. */
+  public static isNo(value: unknown): boolean {
+    return value === false || value === 'false';
   }
 
   /** "6_TO_11_MONTHS", "6-to-11-months", "6 to 11 months" -> "6_TO_11_MONTHS"; anything else -> undefined. */
@@ -337,7 +343,24 @@ export class ValuationEngine {
       customPercentages,
       accessoryDeductions: ValuationEngine.accessoryDeductionsFromRule(rule),
       deviceAgePercentages: ValuationEngine.deviceAgePercentagesFromRule(rule),
+      displayNotOriginalPct: ValuationEngine.displayNotOriginalPctFromRule(rule),
     };
+  }
+
+  /**
+   * Admin's "Display not original" % for the model (Pricing window -> Basic working condition), read
+   * the same way the window shows it: the saved %, else the saved rupee amount as a % of the rule's
+   * base price, else undefined (the engine's 10% default, which is also what the window shows).
+   */
+  public static displayNotOriginalPctFromRule(rule: any): number | undefined {
+    const pct = Number(rule?.deductionPercentages?.basicQuestions?.displayNotOriginal);
+    if (rule?.deductionPercentages?.basicQuestions?.displayNotOriginal != null && Number.isFinite(pct) && pct >= 0) return pct;
+    const amount = Number(rule?.deductions?.basicQuestions?.displayNotOriginal);
+    const base = Number(rule?.ruleBasePrice ?? rule?.basePrice);
+    if (rule?.deductions?.basicQuestions?.displayNotOriginal != null && Number.isFinite(amount) && amount > 0 && base > 0) {
+      return Math.round((amount / base) * 100);
+    }
+    return undefined;
   }
 
   /**
@@ -427,6 +450,14 @@ export class ValuationEngine {
       const rateSource = mapRateSource(d.source);
       if (ACCESSORY_LINES[d.key]) {
         breakdown.push({ ...ACCESSORY_LINES[d.key], adjustment: -d.amount, rateSource });
+      } else if (d.key === 'display_not_original') {
+        screenDeduction += d.amount;
+        breakdown.push({
+          component: 'Display not original',
+          description: `${d.pct}% taken off: display replaced outside an authorised service centre`,
+          adjustment: -d.amount,
+          rateSource,
+        });
       } else if (d.key === 'device_age') {
         const label = d.band ? DEVICE_AGE_LABELS[d.band] : 'Phone age';
         breakdown.push({

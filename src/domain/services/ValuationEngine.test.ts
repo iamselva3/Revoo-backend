@@ -131,6 +131,49 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(ValuationEngine.calculate(cheap, condition).finalPrice).toBe(3600);
   });
 
+  describe('Display not original', () => {
+    const answers = (bq: Record<string, unknown>) =>
+      ({
+        phone_working_condition: bq.isPhoneWorking !== false,
+        screen_condition: bq.isTouchscreenWorking === false ? 'touch_screen_not_working' : 'flawless',
+        body_condition: 'no_scratches_flawless',
+        battery_health: 'above_90_percent',
+        hardware_defects: [],
+        accessories: ['original_charger', 'box_same_imei', 'bill_same_imei'],
+        basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, ...bq },
+      }) as any;
+    const line = (r: any) => r.breakdown.find((b: any) => b.component === 'Display not original');
+
+    test('"No" takes off 10% when the admin has not set a %', () => {
+      const r = ValuationEngine.calculate(iphone18ProMaxRule, answers({ isDisplayOriginal: false }));
+      expect(r.finalPrice).toBe(90900 - 9090);
+      expect(line(r)?.adjustment).toBe(-9090);
+    });
+
+    test("uses the admin's % for the model (Pricing window)", () => {
+      const rule = { ...iphone18ProMaxRule, deductionPercentages: { basicQuestions: { displayNotOriginal: 20 } } } as any;
+      expect(ValuationEngine.calculate(rule, answers({ isDisplayOriginal: false })).finalPrice).toBe(90900 - 18180);
+    });
+
+    test('older rules that saved only a rupee amount are read as a % of their base price', () => {
+      const rule = { ...iphone18ProMaxRule, deductions: { basicQuestions: { displayNotOriginal: 4545 } } } as any;
+      expect(ValuationEngine.calculate(rule, answers({ isDisplayOriginal: false })).finalPrice).toBe(90900 - 4545);
+    });
+
+    test('"Yes" or no answer takes nothing off', () => {
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, answers({ isDisplayOriginal: true })).finalPrice).toBe(90900);
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, answers({ isDisplayOriginal: undefined })).finalPrice).toBe(90900);
+    });
+
+    test('not charged on top of a dead touchscreen or a phone that does not switch on', () => {
+      const deadTouch = ValuationEngine.calculate(iphone18ProMaxRule, answers({ isTouchscreenWorking: false, isDisplayOriginal: false }));
+      expect(line(deadTouch)).toBeUndefined();
+      const dead = ValuationEngine.calculate(iphone18ProMaxRule, answers({ isPhoneWorking: false, isDisplayOriginal: false }));
+      expect(line(dead)).toBeUndefined();
+      expect(dead.finalPrice).toBe(2000 + 610); // scrap floor + accessories, as before
+    });
+  });
+
   describe('Phone age', () => {
     const ageRule = {
       ...iphone18ProMaxRule,
