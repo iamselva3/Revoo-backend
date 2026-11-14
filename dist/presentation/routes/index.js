@@ -12,6 +12,7 @@ const enquiry_routes_js_1 = __importDefault(require("./enquiry.routes.js"));
 const dashboard_routes_js_1 = __importDefault(require("./dashboard.routes.js"));
 const geo_routes_js_1 = __importDefault(require("./geo.routes.js"));
 const employee_routes_js_1 = __importDefault(require("./employee.routes.js"));
+const ai_routes_js_1 = __importDefault(require("./ai.routes.js"));
 const router = (0, express_1.Router)();
 router.use('/auth', auth_routes_js_1.default);
 router.use('/catalogue', catalogue_routes_js_1.default);
@@ -21,6 +22,7 @@ router.use('/enquiries', enquiry_routes_js_1.default);
 router.use('/dashboard', dashboard_routes_js_1.default);
 router.use('/geo', geo_routes_js_1.default);
 router.use('/employees', employee_routes_js_1.default);
+router.use('/ai', ai_routes_js_1.default);
 // Health check endpoint
 router.get('/health', (req, res) => {
     res.status(200).json({

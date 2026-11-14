@@ -58,6 +58,10 @@ export const config = {
     apiUrl: process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v19.0',
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
-  }
+  },
+  groq: {
+    apiKey: process.env.Groq_api || process.env.GROQ_API_KEY || process.env.GROQ_API || '',
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+  },
 };
 

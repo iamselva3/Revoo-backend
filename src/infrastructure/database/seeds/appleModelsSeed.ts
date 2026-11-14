@@ -211,3 +211,4 @@ export async function seedAppleModelsArrangementIfNeeded(): Promise<void> {
     console.error('[Apple Models Seeder] Error during Apple models arrangement:', err);
   }
 }
+
