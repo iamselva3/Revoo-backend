@@ -540,12 +540,17 @@ class CatalogueController {
     }
     static async adminCreateVariant(req, res, next) {
         try {
-            const { modelId, priceModifier, isPublished, ram, storage, rom } = req.body;
+            const { priceModifier, isPublished, ram, storage, rom } = req.body;
+            const modelId = req.params.id || req.body.modelId;
             const resolvedStorage = storage || rom || '';
             let capacity = req.body.capacity;
             if (!capacity && (ram || resolvedStorage)) {
                 capacity = [ram, resolvedStorage].filter(Boolean).join(' / ');
             }
+            if (!capacity)
+                return next(new types_js_1.AppError('Enter the RAM and storage for the variant.', 400));
+            if (!(await SmartphoneModel_js_1.SmartphoneModel.exists({ _id: modelId })))
+                return next(new types_js_1.AppError('Model not found', 404));
             const variant = await StorageVariant_js_1.StorageVariantModel.create({
                 modelId,
                 capacity,
@@ -1275,8 +1280,7 @@ class CatalogueController {
                 }
                 return item;
             });
-            res.status(200).json({ success: true, data: normalizedInvoices });
-            res.status(200).json({ success: true, count: invoices.length, data: invoices });
+            res.status(200).json({ success: true, count: normalizedInvoices.length, data: normalizedInvoices });
         }
         catch (err) {
             next(err);

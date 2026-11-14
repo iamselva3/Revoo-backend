@@ -579,6 +579,9 @@ export class BuybackRequestController {
     try {
       const { id } = req.params;
       const { status, notes } = req.body;
+      if (!Object.values(RequestStatus).includes(status)) {
+        return next(new AppError('Choose a valid status.', 400));
+      }
 
       const request = await BuybackRequestModel.findById(id);
       if (!request) return next(new AppError('Request not found', 404));
@@ -653,6 +656,9 @@ export class BuybackRequestController {
 
       const request = await BuybackRequestModel.findById(id);
       if (!request) return next(new AppError('Request not found', 404));
+      // Check everything before touching the current offer (it is superseded below)
+      if (!(Number(finalOfferedAmount) > 0)) return next(new AppError('Enter the final offer amount.', 400));
+      if (!request.inspectionId) return next(new AppError('Submit the inspection before the final offer.', 400));
 
       // Supersede any prior open offer
       await FinalOfferModel.updateMany(

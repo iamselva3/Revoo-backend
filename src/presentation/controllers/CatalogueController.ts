@@ -611,12 +611,15 @@ export class CatalogueController {
 
   public static async adminCreateVariant(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
-      const { modelId, priceModifier, isPublished, ram, storage, rom } = req.body;
+      const { priceModifier, isPublished, ram, storage, rom } = req.body;
+      const modelId = req.params.id || req.body.modelId;
       const resolvedStorage = storage || rom || '';
       let capacity = req.body.capacity;
       if (!capacity && (ram || resolvedStorage)) {
         capacity = [ram, resolvedStorage].filter(Boolean).join(' / ');
       }
+      if (!capacity) return next(new AppError('Enter the RAM and storage for the variant.', 400));
+      if (!(await SmartphoneModel.exists({ _id: modelId }))) return next(new AppError('Model not found', 404));
 
       const variant = await StorageVariantModel.create({
         modelId,
@@ -1379,9 +1382,7 @@ export class CatalogueController {
         return item;
       });
 
-      res.status(200).json({ success: true, data: normalizedInvoices });
-
-      res.status(200).json({ success: true, count: invoices.length, data: invoices });
+      res.status(200).json({ success: true, count: normalizedInvoices.length, data: normalizedInvoices });
     } catch (err) {
       next(err);
     }

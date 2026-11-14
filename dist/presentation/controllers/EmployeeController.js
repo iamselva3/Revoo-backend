@@ -7,7 +7,7 @@ class EmployeeController {
      * GET /api/v1/employees
      * List all employees with filters for district, status, role, search
      */
-    static async listEmployees(req, res) {
+    static async listEmployees(req, res, next) {
         try {
             const q = (req.query.q || '').trim();
             const district = (req.query.district || '').trim();
@@ -52,14 +52,14 @@ class EmployeeController {
         }
         catch (err) {
             console.error('[EmployeeController] listEmployees error:', err);
-            return res.status(500).json({ success: false, message: 'Failed to retrieve employees' });
+            return next(err);
         }
     }
     /**
      * GET /api/v1/employees/recommend
      * Smart Staff Recommendation based on customer request PIN code and district
      */
-    static async recommendStaff(req, res) {
+    static async recommendStaff(req, res, next) {
         try {
             const pincode = (req.query.pincode || '').trim();
             const district = (req.query.district || '').trim();
@@ -130,14 +130,14 @@ class EmployeeController {
         }
         catch (err) {
             console.error('[EmployeeController] recommendStaff error:', err);
-            return res.status(500).json({ success: false, message: 'Failed to recommend staff' });
+            return next(err);
         }
     }
     /**
      * POST /api/v1/employees
      * Add a new collection personnel / pickup partner
      */
-    static async createEmployee(req, res) {
+    static async createEmployee(req, res, next) {
         try {
             const { fullName, phone, email, district, state = 'Tamil Nadu', assignedPincodes = [], role = 'PICKUP_PARTNER', groupName, status = 'ACTIVE', vehicleType = 'BIKE', } = req.body;
             if (!fullName || !phone || !district) {
@@ -167,14 +167,14 @@ class EmployeeController {
         }
         catch (err) {
             console.error('[EmployeeController] createEmployee error:', err);
-            return res.status(500).json({ success: false, message: err.message || 'Failed to create employee' });
+            return next(err);
         }
     }
     /**
      * PUT /api/v1/employees/:id
      * Update employee details
      */
-    static async updateEmployee(req, res) {
+    static async updateEmployee(req, res, next) {
         try {
             const { id } = req.params;
             const updates = req.body;
@@ -189,14 +189,14 @@ class EmployeeController {
         }
         catch (err) {
             console.error('[EmployeeController] updateEmployee error:', err);
-            return res.status(500).json({ success: false, message: err.message || 'Failed to update employee' });
+            return next(err);
         }
     }
     /**
      * DELETE /api/v1/employees/:id
      * Remove or inactivate employee
      */
-    static async deleteEmployee(req, res) {
+    static async deleteEmployee(req, res, next) {
         try {
             const { id } = req.params;
             const deleted = await Employee_js_1.EmployeeModel.findByIdAndDelete(id);
@@ -207,7 +207,7 @@ class EmployeeController {
         }
         catch (err) {
             console.error('[EmployeeController] deleteEmployee error:', err);
-            return res.status(500).json({ success: false, message: 'Failed to delete employee' });
+            return next(err);
         }
     }
 }

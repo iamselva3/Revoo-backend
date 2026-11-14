@@ -522,6 +522,9 @@ class BuybackRequestController {
         try {
             const { id } = req.params;
             const { status, notes } = req.body;
+            if (!Object.values(types_js_1.RequestStatus).includes(status)) {
+                return next(new types_js_1.AppError('Choose a valid status.', 400));
+            }
             const request = await BuybackRequest_js_1.BuybackRequestModel.findById(id);
             if (!request)
                 return next(new types_js_1.AppError('Request not found', 404));
@@ -590,6 +593,11 @@ class BuybackRequestController {
             const request = await BuybackRequest_js_1.BuybackRequestModel.findById(id);
             if (!request)
                 return next(new types_js_1.AppError('Request not found', 404));
+            // Check everything before touching the current offer (it is superseded below)
+            if (!(Number(finalOfferedAmount) > 0))
+                return next(new types_js_1.AppError('Enter the final offer amount.', 400));
+            if (!request.inspectionId)
+                return next(new types_js_1.AppError('Submit the inspection before the final offer.', 400));
             // Supersede any prior open offer
             await FinalOffer_js_1.FinalOfferModel.updateMany({ requestId: request._id, status: types_js_1.FinalOfferStatus.ISSUED }, { status: types_js_1.FinalOfferStatus.SUPERSEDED });
             const offerCount = await FinalOffer_js_1.FinalOfferModel.countDocuments({ requestId: request._id });

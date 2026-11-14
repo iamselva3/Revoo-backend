@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.errorHandler = void 0;
-const index_js_1 = require("../../config/index.js");
 const errorHandler = (err, req, res, next) => {
     let statusCode = err.statusCode || 500;
     let message = err.message || 'Internal Server Error';
@@ -10,6 +9,13 @@ const errorHandler = (err, req, res, next) => {
     if (err.name === 'CastError') {
         statusCode = 400;
         message = `Invalid identifier format: ${err.value}`;
+    }
+    // Handle Mongoose validation errors (missing or invalid fields): the request is wrong, not the server
+    if (err.name === 'ValidationError' && err.errors && typeof err.errors === 'object') {
+        statusCode = 400;
+        const fields = Object.keys(err.errors);
+        message = `Please check these fields: ${fields.join(', ')}.`;
+        errors = Object.fromEntries(fields.map((f) => [f, err.errors[f]?.message || 'Invalid value']));
     }
     // Handle Mongoose duplicate key error
     if (err.code === 11000) {
@@ -30,15 +36,20 @@ const errorHandler = (err, req, res, next) => {
         statusCode = 400;
         message = err.message;
     }
-    // Only log unexpected server errors in development or non-operational errors
-    if (!err.isOperational) {
+    // Log only real server errors (bad ids or missing fields are the caller's mistake, already a 4xx)
+    if (statusCode >= 500 && !err.isOperational) {
         console.error('[UNHANDLED SERVER ERROR]', err);
     }
+    // A response may already be on its way (a handler replied, then failed): never answer twice
+    if (res.headersSent)
+        return;
     res.status(statusCode).json({
         success: false,
         message,
         errors,
-        stack: index_js_1.config.isProduction ? undefined : err.stack,
+        // Code locations only when explicitly developing locally; never in a deployed API (Render does
+        // not run with NODE_ENV=production, so "not production" would leak them to every visitor)
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     });
 };
 exports.errorHandler = errorHandler;

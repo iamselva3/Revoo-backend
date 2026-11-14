@@ -5,10 +5,11 @@ import { authenticateAdmin } from '../middlewares/auth.middleware.js';
 const router = Router();
 
 // Recommendation endpoint for buyback pickup staff assignment
-router.get('/recommend', EmployeeController.recommendStaff);
+// Staff names, phones and emails: admin only
+router.get('/recommend', authenticateAdmin, EmployeeController.recommendStaff);
 
 // Management CRUD routes
-router.get('/', EmployeeController.listEmployees);
+router.get('/', authenticateAdmin, EmployeeController.listEmployees);
 router.post('/', authenticateAdmin, EmployeeController.createEmployee);
 router.put('/:id', authenticateAdmin, EmployeeController.updateEmployee);
 router.delete('/:id', authenticateAdmin, EmployeeController.deleteEmployee);
