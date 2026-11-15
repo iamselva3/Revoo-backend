@@ -218,32 +218,17 @@ class CatalogueController {
                 box_same_imei: !!resolvedBox,
                 original_charger: !!resolvedCharger,
             };
-            // Check for unmapped or unexpected fields in request and log warnings
-            const unmappedFields = [];
-            const hf = (fullCondition.hardwareFaults || {});
-            if (hf.proximitySensorNotWorking || fullCondition.proximitySensorNotWorking) {
-                unmappedFields.push('proximitySensorNotWorking (no deduction rate in Dofy model)');
-            }
-            if (hf.vibratorNotWorking || fullCondition.vibratorNotWorking) {
-                unmappedFields.push('vibratorNotWorking (no deduction rate in Dofy model)');
-            }
-            if (unmappedFields.length > 0) {
-                console.warn(`[PRICING ENGINE WARNING] Unmapped fields received in estimate request: ${unmappedFields.join(', ')}`);
-            }
-            // STEP 3: Map DB fields to engine's phone object live from DB
-            const baseVariantPrice = effectiveBasePrice + storageModifier;
-            const phoneData = {
-                basePrice: baseVariantPrice,
-                minScrapPrice: pricingRule?.minScrapPrice ?? pricingRule?.customScrapFloor,
-                customDeductions: pricingRule?.customDeductions ?? pricingRule?.specific_deductions_inr,
-                customPercentages: pricingRule?.customPercentages,
-                accessoryDeductions: ValuationEngine_js_1.ValuationEngine.accessoryDeductionsFromRule(pricingRule),
-                deviceAgePercentages: ValuationEngine_js_1.ValuationEngine.deviceAgePercentagesFromRule({
-                    ...(pricingRule || {}),
-                    deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
-                }),
-                displayNotOriginalPct: ValuationEngine_js_1.ValuationEngine.displayNotOriginalPctFromRule(pricingRule),
+            // STEP 3: The model's pricing settings (admin's % for every answer, accessories, phone age) on
+            // the variant's price. The quote and its breakdown are both computed from this.
+            const ruleForEngine = {
+                ...(pricingRule || {}),
+                deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
+                ruleBasePrice: pricingRule?.basePrice,
+                basePrice: effectiveBasePrice,
+                storagePriceAdjustment: storageModifier,
+                version: pricingRule?.version || 1,
             };
+            const phoneData = ValuationEngine_js_1.ValuationEngine.mapDbToPhone(ruleForEngine);
             // STEP 4: Map app's answers to engine's input object
             const engineInput = ValuationEngine_js_1.ValuationEngine.mapConditionToEngineInput(fullCondition);
             // STEP 5: Config with criticalKeys if configured in DB
@@ -255,14 +240,7 @@ class CatalogueController {
             // Log engine result for every quote for debugging price mismatches
             console.log('[PRICING ENGINE RESULT]', JSON.stringify(engineResult, null, 2));
             // Build structured breakdown for mobile app & UI display
-            const valuation = ValuationEngine_js_1.ValuationEngine.calculate({
-                ...(pricingRule || {}),
-                deviceAgeDeductions: resolved?.model?.deviceAgeDeductions,
-                ruleBasePrice: pricingRule?.basePrice,
-                basePrice: effectiveBasePrice,
-                storagePriceAdjustment: storageModifier,
-                version: pricingRule?.version || 1,
-            }, fullCondition, engineConfig);
+            const valuation = ValuationEngine_js_1.ValuationEngine.calculate(ruleForEngine, fullCondition, engineConfig);
             res.status(200).json({
                 success: true,
                 message: 'Indicative estimate calculated successfully.',

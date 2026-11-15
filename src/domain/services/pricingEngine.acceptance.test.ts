@@ -19,7 +19,8 @@ describe('PricingEngine - Official Acceptance Tests', () => {
     const result = calculatePrice(phone, input);
 
     expect(result.totalDeductions).toBe(91809);
-    expect(result.finalPrice).toBe(2610);
+    // Scrap floor only: accessories are part of the price, never an extra
+    expect(result.finalPrice).toBe(2000);
   });
 
   test('Test 2 (BasePrice 90900, flawless, all accessories): screenKey flawless, bodyKey no_scratches_flawless, batteryKey above_90_percent, hardwareKeys [], all accessories true', () => {
@@ -79,8 +80,9 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
+    // 97.8% off by default (admin can change it): lands on the scrap value, 2.2% of 45000
     expect(result.finalPrice).toBe(990);
-    expect(result.rule).toBe('critical_fault:network_or_sim_tray_issue');
+    expect(result.deductions.find((d) => d.key === 'network_or_sim_tray_issue')?.amount).toBe(44010);
   });
 
   test('Test 5 (same as Test 4 but hardwareKeys [])', () => {
@@ -100,7 +102,8 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
-    expect(result.finalPrice).toBe(34440);
+    // 45000 - 2250 (minor dent 5%) - 8100 (no bill: out of warranty 18%)
+    expect(result.finalPrice).toBe(34650);
   });
 
   test('Test 6: pass an unknown key, e.g. screenKey: abc. Expected: throws Unknown condition key', () => {

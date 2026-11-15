@@ -187,6 +187,7 @@ class BuybackRequestController {
                 deductions: pricingRule.deductions,
                 deductionPercentages: pricingRule.deductionPercentages,
                 deviceAgeDeductions: model.deviceAgeDeductions,
+                ruleBasePrice: configRule?.basePrice,
                 version: pricingRule.version,
                 isActive: pricingRule.isActive,
                 effectiveFrom: pricingRule.effectiveFrom,

@@ -54,7 +54,25 @@ export interface IPricingRuleDocument extends Document {
       HEAVY_DENT?: number;
       BENT_OR_BROKEN?: number;
     };
+    screenDisplay?: {
+      NO_SPOT?: number;
+      MINOR_SPOTS?: number;
+      MAJOR_SPOTS_OR_LINES?: number;
+    };
+    touchGlass?: {
+      NO_SCRATCH?: number;
+      MINOR_SCRATCHES?: number;
+      HEAVY_SCRATCHES?: number;
+      CRACKED_GLASS?: number;
+    };
     hardwareFaults?: {
+      batteryHealthBelow83?: number;
+      frontCameraNotWorking?: number;
+      backCameraNotWorking?: number;
+      cameraGlassBroken?: number;
+      networkProblem?: number;
+      microphoneNotWorking?: number;
+      biometricsNotWorking?: number;
       volumeButtonNotWorking?: number;
       wifiOrBluetoothNotWorking?: number;
       chargingPortNotWorking?: number;
@@ -64,6 +82,7 @@ export interface IPricingRuleDocument extends Document {
       vibratorNotWorking?: number;
     };
   };
+  /** Pricing window: % of the price for every customer answer, by section and field (whole numbers). */
   deductionPercentages?: any;
   version: number;
   isActive: boolean;
@@ -128,7 +147,25 @@ const PricingRuleSchema = new Schema<IPricingRuleDocument>(
         HEAVY_DENT: { type: Number },
         BENT_OR_BROKEN: { type: Number },
       },
+      screenDisplay: {
+        NO_SPOT: { type: Number },
+        MINOR_SPOTS: { type: Number },
+        MAJOR_SPOTS_OR_LINES: { type: Number },
+      },
+      touchGlass: {
+        NO_SCRATCH: { type: Number },
+        MINOR_SCRATCHES: { type: Number },
+        HEAVY_SCRATCHES: { type: Number },
+        CRACKED_GLASS: { type: Number },
+      },
       hardwareFaults: {
+        batteryHealthBelow83: { type: Number },
+        frontCameraNotWorking: { type: Number },
+        backCameraNotWorking: { type: Number },
+        cameraGlassBroken: { type: Number },
+        networkProblem: { type: Number },
+        microphoneNotWorking: { type: Number },
+        biometricsNotWorking: { type: Number },
         volumeButtonNotWorking: { type: Number },
         wifiOrBluetoothNotWorking: { type: Number },
         chargingPortNotWorking: { type: Number },

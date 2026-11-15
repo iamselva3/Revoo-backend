@@ -2,6 +2,7 @@ export interface PhonePricingData {
   basePrice: number;
   minScrapPrice?: number;
   customDeductions?: Record<string, number>;
+  /** Admin's % per engine key, as fractions (0.12 = 12%); from the Pricing window. */
   customPercentages?: Record<string, number>;
   /** Amount taken off when the accessory is missing (admin, per model). */
   accessoryDeductions?: { original_charger?: number; box_same_imei?: number };
@@ -17,6 +18,9 @@ export interface PricingEngineInput {
   phone_working_condition: boolean;
   screenKey: string;
   bodyKey: string;
+  /** Back and side panel answers, priced separately (they add up). */
+  backKey?: string;
+  sideKey?: string;
   batteryKey: string;
   hardwareKeys: string[];
   accessories: {
@@ -28,7 +32,10 @@ export interface PricingEngineInput {
   deviceAge?: DeviceAgeBand;
   /** Customer said the display is not original (replaced outside an authorised centre). */
   displayNotOriginal?: boolean;
-  /** Customer said the phone is under warranty. false: a missing bill costs nothing; undefined: old rule. */
+  /**
+   * Customer said the phone is under warranty. false (also when the question wasn't asked): the
+   * "No valid warranty" % is taken off; undefined (older apps): the bill decides.
+   */
   underWarranty?: boolean;
 }
 
@@ -65,6 +72,19 @@ export declare function calculatePrice(
   config?: PricingEngineConfig
 ): PricingEngineResult;
 
+export interface PricingOption {
+  /** Engine key the answer is priced by */
+  key: string;
+  /** Default % of the price taken off (whole numbers: 12 = 12%) */
+  pct: number;
+  /** Name in the price breakdown */
+  label: string;
+}
+
+/** Every customer answer by Pricing-window section and field. */
+export declare const PRICING_OPTIONS: Record<string, Record<string, PricingOption>>;
+/** Breakdown name of each customer answer, by engine key. */
+export declare const OPTION_LABELS: Record<string, string>;
 export declare const DEFAULT_PCT: Record<string, number>;
 export declare const WARRANTY_VOID_KEYS: Set<string>;
 export declare const ACC_BONUS: Record<string, number>;

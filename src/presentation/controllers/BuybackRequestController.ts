@@ -204,6 +204,7 @@ export class BuybackRequestController {
           deductions: pricingRule.deductions as any,
           deductionPercentages: (pricingRule as any).deductionPercentages,
           deviceAgeDeductions: model.deviceAgeDeductions,
+          ruleBasePrice: configRule?.basePrice,
           version: pricingRule.version,
           isActive: pricingRule.isActive,
           effectiveFrom: pricingRule.effectiveFrom,

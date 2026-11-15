@@ -15,7 +15,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     effectiveFrom: new Date(),
   };
 
-  test('Scenario A: Severely damaged phone hits scrap floor and adds back accessories', () => {
+  test('Scenario A: Severely damaged phone is priced at the scrap floor (accessories are never an extra)', () => {
     // BasePrice = 90900 (iPhone 18 Pro Max 256GB)
     // Selections:
     // - Touch Not Working (-56358) [Triggers Warranty Void]
@@ -26,8 +26,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     // Warranty Void deduction: -16362 (18% of 90900)
     // Total Deductions = 56358 + 3636 + 7272 + 8181 + 16362 = 91809
     // RawBodyPrice = 90900 - 91809 = -909  -> below the scrap floor
-    // At scrap value the accessory extras apply (like a phone that doesn't switch on):
-    // FinalPrice = 2000 + 250 + 150 + 210 = 2610
+    // The price includes the accessories, so nothing is added on top: FinalPrice = scrap floor = 2000
     const condition: DeclaredCondition = {
       phone_working_condition: true,
       screen_condition: 'touch_screen_not_working',
@@ -50,9 +49,9 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.itemizedBreakdown.warrantyDeduction).toBe(16362);
     expect(result.rawBodyPrice).toBe(-909);
     expect(result.clampedBodyPrice).toBe(2000);
-    expect(result.selectedAccBonus).toBe(610);
-    expect(result.finalPrice).toBe(2610);
-    expect(result.finalCalculatedAmount).toBe(2610);
+    expect(result.selectedAccBonus).toBe(0);
+    expect(result.finalPrice).toBe(2000);
+    expect(result.finalCalculatedAmount).toBe(2000);
   });
 
   test('Scenario B: Flawless phone with all accessories stays within Base Price', () => {
@@ -131,7 +130,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(ValuationEngine.calculate(cheap, condition).finalPrice).toBe(3600);
   });
 
-  describe('Bill only counts for a phone under warranty (turncash flow)', () => {
+  describe('Warranty and bill (turncash flow)', () => {
     const perfect = (bq: Record<string, unknown> | undefined, bill: boolean) =>
       ({
         phone_working_condition: true,
@@ -144,18 +143,29 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
         ...(bq ? { basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, ...bq } } : {}),
       }) as any;
 
-    test('no warranty (bill not asked): nothing taken off for the bill', () => {
-      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: false }, false)).finalPrice).toBe(90900);
+    const NO_WARRANTY = Math.round(90900 * 0.18);
+
+    test('no warranty (bill not asked): the "No valid warranty" % is taken off once', () => {
+      const r = ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: false }, false));
+      expect(r.finalPrice).toBe(90900 - NO_WARRANTY);
+      expect(r.breakdown.find((b) => b.component === 'No valid warranty')?.adjustment).toBe(-NO_WARRANTY);
     });
 
-    test('under warranty without the bill: the no-bill penalty and Rs 210 apply as before', () => {
-      const r = ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: true }, false));
-      expect(r.finalPrice).toBe(90900 - Math.round(90900 * 0.18) - 210);
+    test('under warranty: with the bill nothing is taken off, without it the phone counts as out of warranty', () => {
       expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: true }, true)).finalPrice).toBe(90900);
+      const r = ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: true }, false));
+      expect(r.finalPrice).toBe(90900 - NO_WARRANTY);
+      expect(r.breakdown.find((b) => b.component === 'No valid warranty')?.description).toMatch(/no bill/);
     });
 
-    test('no warranty answer at all (older apps): the old rule stays', () => {
-      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect(undefined, false)).finalPrice).toBe(90900 - Math.round(90900 * 0.18) - 210);
+    test('no warranty answer at all (older apps): the bill decides', () => {
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect(undefined, false)).finalPrice).toBe(90900 - NO_WARRANTY);
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect(undefined, true)).finalPrice).toBe(90900);
+    });
+
+    test("uses the admin's No valid warranty %", () => {
+      const rule = { ...iphone18ProMaxRule, deductionPercentages: { basicQuestions: { noWarranty: 5 } } } as any;
+      expect(ValuationEngine.calculate(rule, perfect({ hasValidWarranty: false }, false)).finalPrice).toBe(90900 - 4545);
     });
 
     test('physical damage still voids the warranty without a warranty answer of yes', () => {
@@ -203,7 +213,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
       expect(line(deadTouch)).toBeUndefined();
       const dead = ValuationEngine.calculate(iphone18ProMaxRule, answers({ isPhoneWorking: false, isDisplayOriginal: false }));
       expect(line(dead)).toBeUndefined();
-      expect(dead.finalPrice).toBe(2000 + 610); // scrap floor + accessories, as before
+      expect(dead.finalPrice).toBe(2000); // scrap value: nothing else is asked
     });
   });
 
@@ -264,12 +274,101 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     });
   });
 
+  describe("Every website answer uses the admin's % (Pricing window)", () => {
+    // What the website sends (declaredCondition), a working phone under warranty with its bill
+    const site = (extra: Record<string, unknown> = {}) =>
+      ({
+        basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: true },
+        screenDisplayCondition: 'NO_SPOT',
+        touchGlassCondition: 'NO_SCRATCH',
+        backPanelCondition: 'NO_DEFECTS',
+        sidePanelCondition: 'NO_DEFECTS',
+        hardwareFaults: {},
+        hasOriginalCharger: true,
+        hasOriginalBox: true,
+        hasValidBill: true,
+        // The estimate endpoint fills these legacy fields with defaults
+        displayCondition: 'FLAWLESS',
+        bodyCondition: 'FLAWLESS',
+        batteryHealth: 'ABOVE_85',
+        ...extra,
+      }) as any;
+    const pct = (p: number) => Math.round((90900 * p) / 100);
+
+    test('a perfect phone keeps the full price', () => {
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, site()).finalPrice).toBe(90900);
+    });
+
+    test('defaults: screen, touch glass, back, side and each fault add up', () => {
+      const r = ValuationEngine.calculate(
+        iphone18ProMaxRule,
+        site({
+          screenDisplayCondition: 'MINOR_SPOTS', // 12
+          touchGlassCondition: 'MINOR_SCRATCHES', // 6
+          backPanelCondition: 'MINOR_SCRATCHES', // 4
+          sidePanelCondition: 'MINOR_DENT_OR_SCRATCHES', // 5
+          hardwareFaults: { vibratorNotWorking: true, proximitySensorNotWorking: true, microphoneNotWorking: true, earSpeakerNotWorking: true }, // 2 + 3 + 8 + 8
+        })
+      );
+      expect(r.finalPrice).toBe(90900 - pct(12) - pct(6) - pct(4) - pct(5) - pct(2) - pct(3) - pct(8) - pct(8));
+      expect(r.breakdown.find((b) => b.component === 'Vibration not working')?.adjustment).toBe(-pct(2));
+      expect(r.breakdown.find((b) => b.component === 'Back panel: minor scratches')?.adjustment).toBe(-pct(4));
+    });
+
+    test("the admin's saved % replace the defaults", () => {
+      const rule = {
+        ...iphone18ProMaxRule,
+        deductionPercentages: {
+          screenDisplay: { MINOR_SPOTS: 3 },
+          touchGlass: { HEAVY_SCRATCHES: 7 },
+          backPanel: { BACK_PANEL_BROKEN: 20 },
+          sidePanel: { HEAVY_DENT: 2 },
+          hardwareFaults: { batteryHealthBelow83: 5, powerButtonNotWorking: 1, volumeButtonNotWorking: 1 },
+        },
+      } as any;
+      const r = ValuationEngine.calculate(
+        rule,
+        site({
+          screenDisplayCondition: 'MINOR_SPOTS',
+          touchGlassCondition: 'HEAVY_SCRATCHES',
+          backPanelCondition: 'BACK_PANEL_BROKEN', // also voids the warranty (18%, default)
+          sidePanelCondition: 'HEAVY_DENT',
+          hardwareFaults: { batteryHealthBelow83: true, powerButtonNotWorking: true, volumeButtonNotWorking: true },
+        })
+      );
+      expect(r.finalPrice).toBe(90900 - pct(3) - pct(7) - pct(20) - pct(2) - pct(5) - pct(1) - pct(1) - pct(18));
+      expect(r.breakdown.find((b) => b.component.startsWith('Battery health'))?.rateSource).toBe('admin_percentage');
+    });
+
+    test('touchscreen not working uses its own % (and voids the warranty)', () => {
+      const rule = { ...iphone18ProMaxRule, deductionPercentages: { basicQuestions: { touchscreenNotWorking: 40 } } } as any;
+      const answers = site({ basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: false, isDisplayOriginal: false, hasValidWarranty: false } });
+      expect(ValuationEngine.calculate(rule, answers).finalPrice).toBe(90900 - pct(40) - pct(18));
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, answers).finalPrice).toBe(90900 - pct(62) - pct(18));
+    });
+
+    test("phone not working: bought at what's left after the admin's %; a working phone never goes below it", () => {
+      const rule = { ...iphone18ProMaxRule, deductionPercentages: { basicQuestions: { phoneNotWorking: 90 } } } as any;
+      const dead = site({ basicQuestions: { isPhoneWorking: false, isTouchscreenWorking: false, isDisplayOriginal: false, hasValidWarranty: false } });
+      expect(ValuationEngine.calculate(rule, dead).finalPrice).toBe(9090);
+      const wrecked = site({ touchGlassCondition: 'CRACKED_GLASS', screenDisplayCondition: 'MAJOR_SPOTS_OR_LINES', backPanelCondition: 'BACK_PANEL_BROKEN', sidePanelCondition: 'BENT_OR_BROKEN' });
+      expect(ValuationEngine.calculate(rule, wrecked).finalPrice).toBe(9090);
+    });
+
+    test('network / SIM issue: scrap value by default, the admin can change it', () => {
+      const answers = site({ hardwareFaults: { networkProblem: true } });
+      expect(ValuationEngine.calculate({ ...iphone18ProMaxRule, minScrapPrice: undefined } as any, answers).finalPrice).toBe(Math.round(90900 * 0.022));
+      const rule = { ...iphone18ProMaxRule, deductionPercentages: { hardwareFaults: { networkProblem: 30 } } } as any;
+      expect(ValuationEngine.calculate(rule, answers).finalPrice).toBe(90900 - pct(30));
+    });
+
+    test('missing charger and box come off the price (the price includes them)', () => {
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, site({ hasOriginalCharger: false, hasOriginalBox: false })).finalPrice).toBe(90900 - 1000);
+    });
+  });
+
   test('Gatekeeper Rule: Phone does not turn on skips all defect deductions', () => {
-    // phone_working_condition === false:
-    // FinalPrice = ScrapFloor + SelectedAccBonus
-    // ScrapFloor = 2000
-    // User has original_charger (+250)
-    // FinalPrice = 2000 + 250 = 2250
+    // phone_working_condition === false: FinalPrice = ScrapFloor = 2000 (accessories are not an extra)
     const deadCondition: DeclaredCondition = {
       phone_working_condition: false,
       screen_condition: 'touch_screen_not_working', // Should be skipped
@@ -286,8 +385,8 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.itemizedBreakdown.bodyDeduction).toBe(0);
     expect(result.itemizedBreakdown.batteryDeduction).toBe(0);
     expect(result.itemizedBreakdown.hardwareDeductions).toBe(0);
-    expect(result.selectedAccBonus).toBe(250);
-    expect(result.finalPrice).toBe(2250);
+    expect(result.selectedAccBonus).toBe(0);
+    expect(result.finalPrice).toBe(2000);
   });
 
   test('Override Priority 1: Admin Flat INR Override takes highest precedence', () => {
@@ -311,7 +410,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     const result = ValuationEngine.calculate(ruleWithFlatOverride, condition);
 
     expect(result.itemizedBreakdown.screenDeduction).toBe(50000);
-    const screenItem = result.breakdown.find((b) => b.component.includes('Screen'));
+    const screenItem = result.breakdown.find((b) => b.component === 'Touchscreen not working');
     expect(screenItem?.rateSource).toBe('admin_flat');
     expect(screenItem?.adjustment).toBe(-50000);
   });
@@ -336,7 +435,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
 
     // 15% of 90900 = Math.round(13635)
     expect(result.itemizedBreakdown.hardwareDeductions).toBe(13635);
-    const hwItem = result.breakdown.find((b) => b.description.includes('rear camera'));
+    const hwItem = result.breakdown.find((b) => b.component === 'Back camera not working');
     expect(hwItem?.rateSource).toBe('admin_percentage');
     expect(hwItem?.adjustment).toBe(-13635);
   });
@@ -366,7 +465,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     }
   });
 
-  test('Missing Bill automatically triggers warranty penalty and forfeits bill bonus', () => {
+  test('Missing bill (no warranty answer, older apps): priced as out of warranty, nothing else', () => {
     const condition: DeclaredCondition = {
       phone_working_condition: true,
       screen_condition: 'flawless',
@@ -378,7 +477,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.warrantyVoided).toBe(true);
     expect(result.itemizedBreakdown.warrantyDeduction).toBe(Math.round(90900 * 0.18));
     expect(result.itemizedBreakdown.billBonus).toBe(0);
-    expect(result.breakdown.find((b) => b.component === 'No bill with same IMEI')?.adjustment).toBe(-210);
+    expect(result.finalPrice).toBe(90900 - Math.round(90900 * 0.18));
   });
 
   test('Calculates default scrap floor via multiplier 0.022 when custom floor is omitted', () => {
@@ -423,7 +522,7 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(result.itemizedBreakdown.bodyDeduction).toBe(3636);
     expect(result.itemizedBreakdown.batteryDeduction).toBe(7272);
     expect(result.itemizedBreakdown.hardwareDeductions).toBe(16362); // 18% of 90900
-    expect(result.selectedAccBonus).toBe(610);
+    expect(result.selectedAccBonus).toBe(0);
     expect(result.warrantyVoided).toBe(true); // Voided by touch not working
   });
 });

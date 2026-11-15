@@ -21,18 +21,36 @@ const modelDeviceAge = async (modelId) => {
     const age = ValuationEngine_js_1.ValuationEngine.sanitizeDeviceAgePercentages(model?.deviceAgeDeductions);
     return age && Object.keys(age).length > 0 ? age : undefined;
 };
+/**
+ * % for every customer answer as the Pricing window shows them (whole numbers): the saved value, or
+ * the engine's default for anything not saved. Exactly what the price engine applies.
+ */
+const withOptionDefaults = (saved) => {
+    const out = { ...(saved || {}) };
+    for (const [section, fields] of Object.entries(ValuationEngine_js_1.PRICING_OPTIONS)) {
+        const merged = { ...(saved?.[section] || {}) };
+        for (const [field, option] of Object.entries(fields)) {
+            const v = saved?.[section]?.[field];
+            merged[field] = v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : option.pct;
+        }
+        out[section] = merged;
+    }
+    return out;
+};
+/** The model-wide rule the price engine uses (the newest one without a variant). */
+const findModelRule = (modelId) => PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true, variantId: null }).sort({ version: -1, updatedAt: -1 });
 class PricingController {
     static async getPricingRuleForModel(req, res, next) {
         try {
             const { modelId } = req.params;
             const { variantId } = req.query;
-            const query = { modelId, isActive: true };
-            if (variantId)
-                query.variantId = variantId;
-            let rule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
-            if (!rule) {
+            let rule = variantId
+                ? await PricingRule_js_1.PricingRuleModel.findOne({ modelId, variantId, isActive: true }).sort({ version: -1 })
+                : null;
+            if (!rule)
+                rule = await findModelRule(modelId);
+            if (!rule)
                 rule = await PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true }).sort({ version: -1 });
-            }
             if (!rule) {
                 let model = null;
                 if (mongoose_1.default.Types.ObjectId.isValid(modelId)) {
@@ -41,181 +59,22 @@ class PricingController {
                 if (!model) {
                     model = await SmartphoneModel_js_1.SmartphoneModel.findOne({ slug: modelId });
                 }
-                const modelBasePrice = model?.basePrice || 45000;
                 const deviceAge = await modelDeviceAge(model?._id);
                 return res.status(200).json({
                     success: true,
                     data: {
                         modelId,
-                        basePrice: modelBasePrice,
+                        basePrice: model?.basePrice || 0,
                         storagePriceAdjustment: 0,
                         version: 1,
                         isActive: true,
-                        deductions: {
-                            // Legacy
-                            display: {
-                                FLAWLESS: 0,
-                                MINOR_SCRATCHES: Math.round(modelBasePrice * 0.08),
-                                DEEP_SCRATCHES: Math.round(modelBasePrice * 0.15),
-                                CRACKED_GLASS: Math.round(modelBasePrice * 0.30),
-                                BROKEN_OR_DEAD_PIXELS: Math.round(modelBasePrice * 0.50),
-                            },
-                            body: {
-                                FLAWLESS: 0,
-                                MINOR_SIGNS_OF_USE: Math.round(modelBasePrice * 0.04),
-                                DENTED_OR_SCRATCHED: Math.round(modelBasePrice * 0.10),
-                                BENT_OR_CRACKED_BACK: Math.round(modelBasePrice * 0.20),
-                            },
-                            battery: {
-                                EXCELLENT: 0,
-                                GOOD: Math.round(modelBasePrice * 0.05),
-                                DEGRADED: Math.round(modelBasePrice * 0.10),
-                            },
-                            functional: {
-                                frontCameraFaulty: Math.round(modelBasePrice * 0.08),
-                                backCameraFaulty: Math.round(modelBasePrice * 0.12),
-                                faceIdOrFingerprintFaulty: Math.round(modelBasePrice * 0.10),
-                                speakerOrMicFaulty: Math.round(modelBasePrice * 0.05),
-                                chargingPortFaulty: Math.round(modelBasePrice * 0.06),
-                                wirelessOrBluetoothFaulty: Math.round(modelBasePrice * 0.07),
-                            },
-                            // DOFY Deductions (Calculated ₹ amounts)
-                            basicQuestions: {
-                                phoneNotWorking: Math.round(modelBasePrice * 0.60),
-                                touchscreenNotWorking: Math.round(modelBasePrice * 0.15),
-                                displayNotOriginal: Math.round(modelBasePrice * 0.10),
-                                noWarranty: Math.round(modelBasePrice * 0.05),
-                            },
-                            backPanel: {
-                                NO_DEFECTS: 0,
-                                MINOR_SCRATCHES: Math.round(modelBasePrice * 0.03),
-                                HEAVY_SCRATCHES: Math.round(modelBasePrice * 0.08),
-                                BACK_PANEL_BROKEN: Math.round(modelBasePrice * 0.15),
-                            },
-                            sidePanel: {
-                                NO_DEFECTS: 0,
-                                MINOR_DENT_OR_SCRATCHES: Math.round(modelBasePrice * 0.03),
-                                HEAVY_DENT: Math.round(modelBasePrice * 0.08),
-                                BENT_OR_BROKEN: Math.round(modelBasePrice * 0.12),
-                            },
-                            hardwareFaults: {
-                                powerButtonNotWorking: Math.round(modelBasePrice * 0.05),
-                                volumeButtonNotWorking: Math.round(modelBasePrice * 0.03),
-                                chargingPortNotWorking: Math.round(modelBasePrice * 0.08),
-                                earSpeakerNotWorking: Math.round(modelBasePrice * 0.03),
-                                proximitySensorNotWorking: Math.round(modelBasePrice * 0.03),
-                                wifiOrBluetoothNotWorking: Math.round(modelBasePrice * 0.05),
-                                vibratorNotWorking: Math.round(modelBasePrice * 0.02),
-                            },
-                            accessoriesBonus: { hasOriginalBox: 500, hasOriginalCharger: 500 },
-                        },
-                        deductionPercentages: {
-                            ...(deviceAge ? { deviceAge } : {}),
-                            // Legacy
-                            display: { FLAWLESS: 0, MINOR_SCRATCHES: 8, DEEP_SCRATCHES: 15, CRACKED_GLASS: 30, BROKEN_OR_DEAD_PIXELS: 50 },
-                            body: { FLAWLESS: 0, MINOR_SIGNS_OF_USE: 4, DENTED_OR_SCRATCHED: 10, BENT_OR_CRACKED_BACK: 20 },
-                            battery: { EXCELLENT: 0, GOOD: 5, DEGRADED: 10 },
-                            functional: {
-                                frontCameraFaulty: 8,
-                                backCameraFaulty: 12,
-                                faceIdOrFingerprintFaulty: 10,
-                                speakerOrMicFaulty: 5,
-                                chargingPortFaulty: 6,
-                                wirelessOrBluetoothFaulty: 7,
-                            },
-                            // DOFY Percentages
-                            basicQuestions: {
-                                phoneNotWorking: 60,
-                                touchscreenNotWorking: 15,
-                                displayNotOriginal: 10,
-                                noWarranty: 5,
-                            },
-                            backPanel: {
-                                NO_DEFECTS: 0,
-                                MINOR_SCRATCHES: 3,
-                                HEAVY_SCRATCHES: 8,
-                                BACK_PANEL_BROKEN: 15,
-                            },
-                            sidePanel: {
-                                NO_DEFECTS: 0,
-                                MINOR_DENT_OR_SCRATCHES: 3,
-                                HEAVY_DENT: 8,
-                                BENT_OR_BROKEN: 12,
-                            },
-                            hardwareFaults: {
-                                powerButtonNotWorking: 5,
-                                volumeButtonNotWorking: 3,
-                                chargingPortNotWorking: 8,
-                                earSpeakerNotWorking: 3,
-                                proximitySensorNotWorking: 3,
-                                wifiOrBluetoothNotWorking: 5,
-                                vibratorNotWorking: 2,
-                            },
-                        },
+                        deductions: { accessoriesBonus: { hasOriginalBox: 500, hasOriginalCharger: 500 } },
+                        deductionPercentages: { ...withOptionDefaults(undefined), ...(deviceAge ? { deviceAge } : {}) },
                     },
                 });
             }
-            // If rule doesn't have deductionPercentages stored, calculate them dynamically from deductions and basePrice
             const ruleObj = rule.toObject();
-            if (!ruleObj.deductionPercentages && ruleObj.basePrice > 0) {
-                const bp = ruleObj.basePrice;
-                const calcPct = (amt) => Math.round(((amt || 0) / bp) * 100);
-                ruleObj.deductionPercentages = {
-                    display: {
-                        FLAWLESS: 0,
-                        MINOR_SCRATCHES: calcPct(ruleObj.deductions?.display?.MINOR_SCRATCHES) || 8,
-                        DEEP_SCRATCHES: calcPct(ruleObj.deductions?.display?.DEEP_SCRATCHES) || 15,
-                        CRACKED_GLASS: calcPct(ruleObj.deductions?.display?.CRACKED_GLASS) || 30,
-                        BROKEN_OR_DEAD_PIXELS: calcPct(ruleObj.deductions?.display?.BROKEN_OR_DEAD_PIXELS) || 50,
-                    },
-                    body: {
-                        FLAWLESS: 0,
-                        MINOR_SIGNS_OF_USE: calcPct(ruleObj.deductions?.body?.MINOR_SIGNS_OF_USE) || 4,
-                        DENTED_OR_SCRATCHED: calcPct(ruleObj.deductions?.body?.DENTED_OR_SCRATCHED) || 10,
-                        BENT_OR_CRACKED_BACK: calcPct(ruleObj.deductions?.body?.BENT_OR_CRACKED_BACK) || 20,
-                    },
-                    battery: {
-                        EXCELLENT: 0,
-                        GOOD: calcPct(ruleObj.deductions?.battery?.GOOD) || 5,
-                        DEGRADED: calcPct(ruleObj.deductions?.battery?.DEGRADED) || 10,
-                    },
-                    functional: {
-                        frontCameraFaulty: calcPct(ruleObj.deductions?.functional?.frontCameraFaulty) || 8,
-                        backCameraFaulty: calcPct(ruleObj.deductions?.functional?.backCameraFaulty) || 12,
-                        faceIdOrFingerprintFaulty: calcPct(ruleObj.deductions?.functional?.faceIdOrFingerprintFaulty) || 10,
-                        speakerOrMicFaulty: calcPct(ruleObj.deductions?.functional?.speakerOrMicFaulty) || 5,
-                        chargingPortFaulty: calcPct(ruleObj.deductions?.functional?.chargingPortFaulty) || 6,
-                        wirelessOrBluetoothFaulty: calcPct(ruleObj.deductions?.functional?.wirelessOrBluetoothFaulty) || 7,
-                    },
-                    basicQuestions: {
-                        phoneNotWorking: calcPct(ruleObj.deductions?.basicQuestions?.phoneNotWorking) || 60,
-                        touchscreenNotWorking: calcPct(ruleObj.deductions?.basicQuestions?.touchscreenNotWorking) || 15,
-                        displayNotOriginal: calcPct(ruleObj.deductions?.basicQuestions?.displayNotOriginal) || 10,
-                        noWarranty: calcPct(ruleObj.deductions?.basicQuestions?.noWarranty) || 5,
-                    },
-                    backPanel: {
-                        NO_DEFECTS: 0,
-                        MINOR_SCRATCHES: calcPct(ruleObj.deductions?.backPanel?.MINOR_SCRATCHES) || 3,
-                        HEAVY_SCRATCHES: calcPct(ruleObj.deductions?.backPanel?.HEAVY_SCRATCHES) || 8,
-                        BACK_PANEL_BROKEN: calcPct(ruleObj.deductions?.backPanel?.BACK_PANEL_BROKEN) || 15,
-                    },
-                    sidePanel: {
-                        NO_DEFECTS: 0,
-                        MINOR_DENT_OR_SCRATCHES: calcPct(ruleObj.deductions?.sidePanel?.MINOR_DENT_OR_SCRATCHES) || 3,
-                        HEAVY_DENT: calcPct(ruleObj.deductions?.sidePanel?.HEAVY_DENT) || 8,
-                        BENT_OR_BROKEN: calcPct(ruleObj.deductions?.sidePanel?.BENT_OR_BROKEN) || 12,
-                    },
-                    hardwareFaults: {
-                        powerButtonNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.powerButtonNotWorking) || 5,
-                        volumeButtonNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.volumeButtonNotWorking) || 3,
-                        chargingPortNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.chargingPortNotWorking) || 8,
-                        earSpeakerNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.earSpeakerNotWorking) || 3,
-                        proximitySensorNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.proximitySensorNotWorking) || 3,
-                        wifiOrBluetoothNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.wifiOrBluetoothNotWorking) || 5,
-                        vibratorNotWorking: calcPct(ruleObj.deductions?.hardwareFaults?.vibratorNotWorking) || 2,
-                    },
-                };
-            }
+            ruleObj.deductionPercentages = withOptionDefaults(ruleObj.deductionPercentages);
             const deviceAge = await modelDeviceAge(ruleObj.modelId);
             if (deviceAge)
                 ruleObj.deductionPercentages = { ...(ruleObj.deductionPercentages || {}), deviceAge };
@@ -229,10 +88,9 @@ class PricingController {
         try {
             const { modelId } = req.params;
             const { variantId, basePrice, storagePriceAdjustment, deductions, deductionPercentages, minScrapPrice, customDeductions, customPercentages, criticalKeys, reasonForChange, } = req.body;
-            const query = { modelId, isActive: true };
-            if (variantId)
-                query.variantId = variantId;
-            const existingRule = await PricingRule_js_1.PricingRuleModel.findOne(query).sort({ version: -1 });
+            const existingRule = variantId
+                ? await PricingRule_js_1.PricingRuleModel.findOne({ modelId, variantId, isActive: true }).sort({ version: -1 })
+                : await findModelRule(modelId);
             const previousVersion = existingRule ? existingRule.version : 0;
             const newVersion = previousVersion + 1;
             // Mark previous rule as superseded

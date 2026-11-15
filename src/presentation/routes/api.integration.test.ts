@@ -266,7 +266,7 @@ describe('REVOO Backend Integration Tests', () => {
           request(app).post('/api/v1/catalogue/estimate').send({
             modelId: sampleModelId,
             variantId: sampleVariantId,
-            basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal, hasValidWarranty: false },
+            basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal, hasValidWarranty: true },
             touchGlassCondition: 'NO_SCRATCH',
             screenDisplayCondition: 'NO_SPOT',
             backPanelCondition: 'NO_DEFECTS',
@@ -285,6 +285,95 @@ describe('REVOO Backend Integration Tests', () => {
       }
     });
 
+    test("POST /api/v1/catalogue/estimate uses the admin's % for every answer (Pricing window)", async () => {
+      const rule = await PricingRuleModel.create({
+        modelId: sampleModelId,
+        basePrice: 70000,
+        version: 4,
+        isActive: true,
+        deductionPercentages: {
+          touchGlass: { MINOR_SCRATCHES: 10 },
+          screenDisplay: { MINOR_SPOTS: 2 },
+          hardwareFaults: { vibratorNotWorking: 4 },
+          basicQuestions: { noWarranty: 6 },
+        },
+      });
+      try {
+        const res = await request(app)
+          .post('/api/v1/catalogue/estimate')
+          .send({
+            modelId: sampleModelId,
+            variantId: sampleVariantId,
+            declaredCondition: {
+              basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: false },
+              touchGlassCondition: 'MINOR_SCRATCHES',
+              screenDisplayCondition: 'MINOR_SPOTS',
+              backPanelCondition: 'NO_DEFECTS',
+              sidePanelCondition: 'NO_DEFECTS',
+              hardwareFaults: { vibratorNotWorking: true },
+              hasOriginalBox: true,
+              hasOriginalCharger: true,
+              hasValidBill: false,
+            },
+          });
+        expect(res.status).toBe(200);
+        // 75000 - 10% touch glass - 2% spots - 4% vibration - 6% no warranty
+        const expected = 75000 - 7500 - 1500 - 3000 - 4500;
+        expect(res.body.data.finalPrice).toBe(expected);
+        expect(res.body.data.valuation.finalCalculatedAmount).toBe(expected);
+        const names = res.body.data.valuation.breakdown.map((b: any) => b.component);
+        expect(names).toEqual(expect.arrayContaining(['Touch glass: minor scratches', 'Screen: 1–2 minor spots', 'Vibration not working', 'No valid warranty']));
+      } finally {
+        await PricingRuleModel.deleteOne({ _id: rule._id });
+      }
+    });
+
+    test('Pricing window: shows the engine defaults for every answer, and what it saves changes the quote', async () => {
+      const auth = { Authorization: `Bearer ${adminToken}` };
+      const answers = {
+        basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: true },
+        touchGlassCondition: 'HEAVY_SCRATCHES',
+        screenDisplayCondition: 'NO_SPOT',
+        backPanelCondition: 'NO_DEFECTS',
+        sidePanelCondition: 'NO_DEFECTS',
+        hardwareFaults: {},
+        hasOriginalBox: true,
+        hasOriginalCharger: true,
+        hasValidBill: true,
+      };
+      const quote = async () =>
+        (await request(app).post('/api/v1/catalogue/estimate').send({ modelId: sampleModelId, variantId: sampleVariantId, declaredCondition: answers }))
+          .body.data.finalPrice;
+
+      const before = await PricingRuleModel.find({ modelId: sampleModelId, isActive: true }).lean();
+      try {
+        await PricingRuleModel.updateMany({ modelId: sampleModelId }, { $set: { isActive: false } });
+
+        // Nothing saved: the window gets the engine's defaults for every answer
+        const shown = await request(app).get(`/api/v1/pricing/model/${sampleModelId}`).set(auth);
+        expect(shown.status).toBe(200);
+        const dp = shown.body.data.deductionPercentages;
+        expect(dp.basicQuestions).toMatchObject({ phoneNotWorking: 97.8, touchscreenNotWorking: 62, displayNotOriginal: 10, noWarranty: 18 });
+        expect(dp.screenDisplay).toMatchObject({ MINOR_SPOTS: 12, MAJOR_SPOTS_OR_LINES: 28 });
+        expect(dp.touchGlass).toMatchObject({ MINOR_SCRATCHES: 6, HEAVY_SCRATCHES: 12, CRACKED_GLASS: 35 });
+        expect(dp.hardwareFaults).toMatchObject({ vibratorNotWorking: 2, proximitySensorNotWorking: 3, networkProblem: 97.8 });
+        expect(await quote()).toBe(75000 - 9000); // heavy glass scratches 12% by default
+
+        // The admin saves 20% for heavy glass scratches: the quote follows
+        const saved = await request(app)
+          .put(`/api/v1/pricing/model/${sampleModelId}`)
+          .set(auth)
+          .send({ basePrice: 70000, deductionPercentages: { ...dp, touchGlass: { ...dp.touchGlass, HEAVY_SCRATCHES: 20 } }, reasonForChange: 'test' });
+        expect(saved.status).toBe(200);
+        expect(await quote()).toBe(75000 - 15000);
+        const reloaded = await request(app).get(`/api/v1/pricing/model/${sampleModelId}`).set(auth);
+        expect(reloaded.body.data.deductionPercentages.touchGlass.HEAVY_SCRATCHES).toBe(20);
+      } finally {
+        await PricingRuleModel.deleteMany({ modelId: sampleModelId, _id: { $nin: before.map((r) => r._id) } });
+        await PricingRuleModel.updateMany({ _id: { $in: before.map((r) => r._id) } }, { $set: { isActive: true } });
+      }
+    });
+
     test("POST /api/v1/catalogue/estimate takes off the admin's phone-age %", async () => {
       const rule = await PricingRuleModel.create({
         modelId: sampleModelId,
@@ -298,7 +387,7 @@ describe('REVOO Backend Integration Tests', () => {
           request(app).post('/api/v1/catalogue/estimate').send({
             modelId: sampleModelId,
             variantId: sampleVariantId,
-            basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: false },
+            basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, hasValidWarranty: true },
             touchGlassCondition: 'NO_SCRATCH',
             screenDisplayCondition: 'NO_SPOT',
             backPanelCondition: 'NO_DEFECTS',
