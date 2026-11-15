@@ -299,7 +299,16 @@ class ValuationEngine {
             },
             deviceAge: ValuationEngine.normalizeDeviceAge(c.deviceAge ?? c.device_age ?? c.basicQuestions?.deviceAge),
             displayNotOriginal: ValuationEngine.isNo(c.basicQuestions?.isDisplayOriginal ?? c.isDisplayOriginal),
+            underWarranty: ValuationEngine.yesNo(c.basicQuestions?.hasValidWarranty ?? c.hasValidWarranty),
         };
+    }
+    /** true / false for an explicit answer (also 'true' / 'false'); undefined when not given. */
+    static yesNo(value) {
+        if (value === true || value === 'true')
+            return true;
+        if (value === false || value === 'false')
+            return false;
+        return undefined;
     }
     /** true for an explicit "No" (false / 'false'); anything else (yes, missing) is not a No. */
     static isNo(value) {

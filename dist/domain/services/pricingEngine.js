@@ -91,7 +91,8 @@ function resolveDeduction(key, basePrice, phone) {
  *   hardwareKeys: string[],
  *   accessories: { original_charger, box_same_imei, bill_same_imei }  (booleans),
  *   deviceAge?: 'BELOW_3_MONTHS' | '3_TO_6_MONTHS' | '6_TO_11_MONTHS' | 'ABOVE_11_MONTHS',
- *   displayNotOriginal?: boolean  (customer said the display is not original)
+ *   displayNotOriginal?: boolean  (customer said the display is not original),
+ *   underWarranty?: boolean  (customer's answer; false = no bill penalty, undefined = old rule)
  * }
  * @param {object} [config] { criticalKeys?: string[], criticalIncludesAccessories?: boolean }
  */
@@ -146,9 +147,13 @@ function calculatePrice(phone, input, config = {}) {
             result.deductions.push({ key: 'display_not_original', amount, source: isSet ? 'admin_pct' : 'default_pct', pct });
         }
     }
-    // Warranty: any physical-damage key OR no bill with matching IMEI
+    // The bill is only asked for a phone under warranty (turncash flow): a customer who says there's no
+    // warranty (or wasn't asked) loses nothing for a missing bill. Unknown (older apps) keeps the old rule.
+    const billCounts = input.underWarranty !== false;
+    const noBill = billCounts && acc.bill_same_imei !== true;
+    // Warranty: any physical-damage key OR (under warranty) no bill with matching IMEI
     const voided = keys.some((k) => WARRANTY_VOID_KEYS.has(k));
-    if (voided || acc.bill_same_imei !== true) {
+    if (voided || noBill) {
         const key = 'out_of_warranty_or_no_bill_penalty';
         const d = resolveDeduction(key, basePrice, phone);
         result.deductions.push({ key, ...d, reason: voided ? 'physical_damage' : 'no_bill' });
@@ -164,7 +169,7 @@ function calculatePrice(phone, input, config = {}) {
             result.deductions.push({ key: deductionKey, amount, source: typeof configured === 'number' ? 'admin_flat' : 'default_flat' });
         }
     }
-    if (acc.bill_same_imei !== true) {
+    if (noBill) {
         result.deductions.push({ key: 'missing_bill_document', amount: NO_BILL_DEDUCTION, source: 'default_flat' });
     }
     // Phone age: admin's % for the band the customer picked

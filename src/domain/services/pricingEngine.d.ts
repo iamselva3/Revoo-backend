@@ -28,6 +28,8 @@ export interface PricingEngineInput {
   deviceAge?: DeviceAgeBand;
   /** Customer said the display is not original (replaced outside an authorised centre). */
   displayNotOriginal?: boolean;
+  /** Customer said the phone is under warranty. false: a missing bill costs nothing; undefined: old rule. */
+  underWarranty?: boolean;
 }
 
 export interface PricingEngineConfig {

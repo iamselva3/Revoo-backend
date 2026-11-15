@@ -131,6 +131,39 @@ describe('ValuationEngine - Dofy Recommerce Master Pricing Tests', () => {
     expect(ValuationEngine.calculate(cheap, condition).finalPrice).toBe(3600);
   });
 
+  describe('Bill only counts for a phone under warranty (turncash flow)', () => {
+    const perfect = (bq: Record<string, unknown> | undefined, bill: boolean) =>
+      ({
+        phone_working_condition: true,
+        screen_condition: 'flawless',
+        body_condition: 'no_scratches_flawless',
+        battery_health: 'above_90_percent',
+        hardware_defects: [],
+        accessories: ['original_charger', 'box_same_imei', ...(bill ? ['bill_same_imei'] : [])],
+        hasValidBill: bill, // the website always sends the bill answer
+        ...(bq ? { basicQuestions: { isPhoneWorking: true, isTouchscreenWorking: true, isDisplayOriginal: true, ...bq } } : {}),
+      }) as any;
+
+    test('no warranty (bill not asked): nothing taken off for the bill', () => {
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: false }, false)).finalPrice).toBe(90900);
+    });
+
+    test('under warranty without the bill: the no-bill penalty and Rs 210 apply as before', () => {
+      const r = ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: true }, false));
+      expect(r.finalPrice).toBe(90900 - Math.round(90900 * 0.18) - 210);
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect({ hasValidWarranty: true }, true)).finalPrice).toBe(90900);
+    });
+
+    test('no warranty answer at all (older apps): the old rule stays', () => {
+      expect(ValuationEngine.calculate(iphone18ProMaxRule, perfect(undefined, false)).finalPrice).toBe(90900 - Math.round(90900 * 0.18) - 210);
+    });
+
+    test('physical damage still voids the warranty without a warranty answer of yes', () => {
+      const r = ValuationEngine.calculate(iphone18ProMaxRule, { ...perfect({ hasValidWarranty: false }, false), screen_condition: 'screen_cracked_glass_only' });
+      expect(r.itemizedBreakdown.warrantyDeduction).toBe(Math.round(90900 * 0.18));
+    });
+  });
+
   describe('Display not original', () => {
     const answers = (bq: Record<string, unknown>) =>
       ({
