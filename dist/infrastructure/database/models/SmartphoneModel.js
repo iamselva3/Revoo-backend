@@ -33,8 +33,30 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SmartphoneModel = void 0;
+exports.SmartphoneModel = exports.deviceCategoryFilter = exports.normalizeDeviceCategory = exports.DEVICE_CATEGORIES = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
+/** What kind of device a model is. Phones, laptops, tablets and TVs are listed separately. */
+exports.DEVICE_CATEGORIES = ['phone', 'laptop', 'tablet', 'tv'];
+/**
+ * "phones", "mobile", "laptops", "macbook", "tablets", "ipad", "smart_tv", ... (the website and the app
+ * use different words) -> the stored category; anything else -> undefined.
+ */
+const normalizeDeviceCategory = (value) => {
+    const v = String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (['phone', 'phones', 'mobile', 'mobiles', 'mobile_phones', 'smartphone', 'smartphones'].includes(v))
+        return 'phone';
+    if (['laptop', 'laptops', 'macbook', 'macbooks', 'notebook', 'notebooks'].includes(v))
+        return 'laptop';
+    if (['tablet', 'tablets', 'ipad', 'ipads', 'tab', 'tabs'].includes(v))
+        return 'tablet';
+    if (['tv', 'tvs', 'smart_tv', 'smart_tvs', 'smarttv', 'television'].includes(v))
+        return 'tv';
+    return undefined;
+};
+exports.normalizeDeviceCategory = normalizeDeviceCategory;
+/** Mongo filter for one category (models saved before categories existed count as phones). */
+const deviceCategoryFilter = (category) => category === 'phone' ? { category: { $in: ['phone', null] } } : { category };
+exports.deviceCategoryFilter = deviceCategoryFilter;
 const SmartphoneModelSchema = new mongoose_1.Schema({
     brandId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Brand', required: true, index: true },
     name: { type: String, required: true, trim: true },
@@ -43,6 +65,7 @@ const SmartphoneModelSchema = new mongoose_1.Schema({
     imageUrl: { type: String },
     basePrice: { type: Number, required: true, min: 0 },
     displayOrder: { type: Number, default: 9999, index: true },
+    category: { type: String, enum: exports.DEVICE_CATEGORIES, default: 'phone', index: true },
     // "How old is your phone?" (asked when the warranty is valid): % of the price taken off per age band.
     // Set in the admin model editor or the Pricing Engine page; read by the valuation engine.
     deviceAgeDeductions: {

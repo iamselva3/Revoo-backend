@@ -5,17 +5,18 @@
 // the defaults below are used for anything not saved. All the answers the customer picked add up.
 // Every customer answer, by Pricing-window field (section -> field): the engine key that prices it,
 // its default % (whole numbers: 12 = 12%) and its name for the price breakdown. The admin window
-// shows exactly this list, with these defaults.
+// shows exactly this list, with these defaults. The defaults are the client's standard % for every
+// phone (also saved on each phone model); a model only differs if the admin saves other values.
 const PRICING_OPTIONS = {
     basicQuestions: {
-        // A phone that doesn't switch on is bought at what's left (2.2% of the price by default); a
+        // A phone that doesn't switch on is bought at what's left (12.1% of the price by default); a
         // working phone is never priced below that.
-        phoneNotWorking: { key: 'phone_not_working', pct: 97.8, label: 'Phone not working' },
-        touchscreenNotWorking: { key: 'touch_screen_not_working', pct: 62, label: 'Touchscreen not working' },
-        displayNotOriginal: { key: 'display_not_original', pct: 10, label: 'Display not original' },
+        phoneNotWorking: { key: 'phone_not_working', pct: 87.9, label: 'Phone not working' },
+        touchscreenNotWorking: { key: 'touch_screen_not_working', pct: 60, label: 'Touchscreen not working' },
+        displayNotOriginal: { key: 'display_not_original', pct: 65, label: 'Display not original' },
         // Taken off once: no warranty (or the question wasn't asked), no bill with the same IMEI, or
         // damage that voids the warranty.
-        noWarranty: { key: 'out_of_warranty_or_no_bill_penalty', pct: 18, label: 'No valid warranty' },
+        noWarranty: { key: 'out_of_warranty_or_no_bill_penalty', pct: 0, label: 'No valid warranty' },
     },
     screenDisplay: {
         MINOR_SPOTS: { key: 'minor_display_spots', pct: 12, label: 'Screen: 1–2 minor spots' },
@@ -27,31 +28,30 @@ const PRICING_OPTIONS = {
         CRACKED_GLASS: { key: 'screen_cracked_glass_only', pct: 35, label: 'Touch glass: cracked or broken' },
     },
     backPanel: {
-        MINOR_SCRATCHES: { key: 'back_minor_scratches', pct: 4, label: 'Back panel: minor scratches' },
-        HEAVY_SCRATCHES: { key: 'back_heavy_scratches', pct: 9, label: 'Back panel: heavy scratches' },
+        MINOR_SCRATCHES: { key: 'back_minor_scratches', pct: 3, label: 'Back panel: minor scratches' },
+        HEAVY_SCRATCHES: { key: 'back_heavy_scratches', pct: 8, label: 'Back panel: heavy scratches' },
         BACK_PANEL_BROKEN: { key: 'back_glass_cracked_or_broken', pct: 15, label: 'Back panel: broken' },
     },
     sidePanel: {
-        MINOR_DENT_OR_SCRATCHES: { key: 'side_minor_dent_or_scratches', pct: 5, label: 'Side panel: minor dent or scratches' },
-        HEAVY_DENT: { key: 'side_heavy_dent', pct: 9, label: 'Side panel: heavy dents or scratches' },
-        BENT_OR_BROKEN: { key: 'dents_or_bent_side_panel', pct: 16, label: 'Side panel: bent or broken' },
+        MINOR_DENT_OR_SCRATCHES: { key: 'side_minor_dent_or_scratches', pct: 3, label: 'Side panel: minor dent or scratches' },
+        HEAVY_DENT: { key: 'side_heavy_dent', pct: 8, label: 'Side panel: heavy dents or scratches' },
+        BENT_OR_BROKEN: { key: 'dents_or_bent_side_panel', pct: 12, label: 'Side panel: bent or broken' },
     },
     hardwareFaults: {
-        batteryHealthBelow83: { key: '80_to_85_percent', pct: 8, label: 'Battery health 83% or below / battery problem' },
+        batteryHealthBelow83: { key: '80_to_85_percent', pct: 15, label: 'Battery health 83% or below / battery problem' },
         frontCameraNotWorking: { key: 'front_camera_not_working', pct: 10, label: 'Front camera not working' },
         backCameraNotWorking: { key: 'rear_camera_not_working_or_blurry', pct: 18, label: 'Back camera not working' },
         cameraGlassBroken: { key: 'camera_glass_broken', pct: 9, label: 'Camera glass broken' },
-        // Same as a phone that doesn't switch on (2.2% of the price is left)
-        networkProblem: { key: 'network_or_sim_tray_issue', pct: 97.8, label: 'Network / SIM issue' },
-        chargingPortNotWorking: { key: 'charging_port_faulty', pct: 7, label: 'Charging port not working' },
-        wifiOrBluetoothNotWorking: { key: 'wifi_bluetooth_gps_issue', pct: 20, label: 'Wi-Fi or Bluetooth not working' },
-        earSpeakerNotWorking: { key: 'speaker_faulty', pct: 8, label: 'Speaker not working' },
-        microphoneNotWorking: { key: 'mic_faulty', pct: 8, label: 'Microphone not working' },
+        networkProblem: { key: 'network_or_sim_tray_issue', pct: 50, label: 'Network / SIM issue' },
+        chargingPortNotWorking: { key: 'charging_port_faulty', pct: 8, label: 'Charging port not working' },
+        wifiOrBluetoothNotWorking: { key: 'wifi_bluetooth_gps_issue', pct: 8, label: 'Wi-Fi or Bluetooth not working' },
+        earSpeakerNotWorking: { key: 'speaker_faulty', pct: 15, label: 'Speaker not working' },
+        microphoneNotWorking: { key: 'mic_faulty', pct: 15, label: 'Microphone not working' },
         biometricsNotWorking: { key: 'face_id_or_fingerprint_not_working', pct: 25, label: 'Face ID / Fingerprint not working' },
-        powerButtonNotWorking: { key: 'power_button_faulty', pct: 6, label: 'Power button not working' },
-        volumeButtonNotWorking: { key: 'volume_button_faulty', pct: 6, label: 'Volume button not working' },
-        vibratorNotWorking: { key: 'vibrator_faulty', pct: 2, label: 'Vibration not working' },
-        proximitySensorNotWorking: { key: 'proximity_sensor_faulty', pct: 3, label: 'Proximity sensor not working' },
+        powerButtonNotWorking: { key: 'power_button_faulty', pct: 5, label: 'Power button not working' },
+        volumeButtonNotWorking: { key: 'volume_button_faulty', pct: 5, label: 'Volume button not working' },
+        vibratorNotWorking: { key: 'vibrator_faulty', pct: 5, label: 'Vibration not working' },
+        proximitySensorNotWorking: { key: 'proximity_sensor_faulty', pct: 8, label: 'Proximity sensor not working' },
     },
 };
 // Keys still sent by older callers (one combined body condition, battery %, combined faults).
@@ -86,10 +86,11 @@ const MISSING_ACCESSORY_KEYS = { original_charger: 'missing_original_charger', b
 // Accessories are part of the price, never an extra (kept for older imports; all zero).
 const ACC_BONUS = { original_charger: 0, box_same_imei: 0, bill_same_imei: 0 };
 // How old the phone is (customer's answer, counted from the purchase date). Per model the admin
-// sets the % of the price taken off for each age band (whole numbers: 5 = 5%). A band the admin
-// hasn't set takes nothing off.
+// sets the % of the price taken off for each age band (whole numbers: 5 = 5%). A band the model
+// hasn't set uses the client's standard below.
 const DEVICE_AGE_BANDS = ['BELOW_3_MONTHS', '3_TO_6_MONTHS', '6_TO_11_MONTHS', 'ABOVE_11_MONTHS'];
 const DEVICE_AGE_MAX_PCT = 90;
+const DEFAULT_DEVICE_AGE_PCT = { BELOW_3_MONTHS: 0, '3_TO_6_MONTHS': 8, '6_TO_11_MONTHS': 12, ABOVE_11_MONTHS: 20 };
 // "Is the phone's display original?" answered No: default % taken off (the admin sets it per model).
 const DEFAULT_DISPLAY_NOT_ORIGINAL_PCT = PRICING_OPTIONS.basicQuestions.displayNotOriginal.pct;
 // Damage that voids a manufacturer warranty: the phone is then priced as out of warranty.
@@ -103,9 +104,8 @@ const WARRANTY_VOID_KEYS = new Set([
 ]);
 const WARRANTY_KEY = PRICING_OPTIONS.basicQuestions.noWarranty.key;
 const NOT_WORKING_KEY = PRICING_OPTIONS.basicQuestions.phoneNotWorking.key;
-// Faults that send the phone straight to scrap value. None by default: "Network / SIM issue" takes
-// 97.8% off instead, which leaves the same scrap value but can be changed by the admin.
-// A rule can still pass config.criticalKeys.
+// Faults that send the phone straight to scrap value. None by default ("Network / SIM issue" has
+// its own %). A rule can still pass config.criticalKeys.
 const DEFAULT_CRITICAL_KEYS = [];
 function resolveDeduction(key, basePrice, phone) {
     const flat = phone.customDeductions?.[key];
@@ -223,14 +223,16 @@ function calculatePrice(phone, input, config = {}) {
             result.deductions.push({ key: deductionKey, amount, source: typeof configured === 'number' ? 'admin_flat' : 'default_flat' });
         }
     }
-    // Phone age: admin's % for the band the customer picked
+    // Phone age: the model's % for the band the customer picked (standard % if the model has none)
     if (DEVICE_AGE_BANDS.includes(input.deviceAge)) {
-        const pct = phone.deviceAgePercentages?.[input.deviceAge];
-        if (typeof pct === 'number' && Number.isFinite(pct) && pct > 0) {
+        const configured = phone.deviceAgePercentages?.[input.deviceAge];
+        const isSet = typeof configured === 'number' && Number.isFinite(configured);
+        const pct = isSet ? configured : DEFAULT_DEVICE_AGE_PCT[input.deviceAge];
+        if (pct > 0) {
             const appliedPct = Math.min(pct, DEVICE_AGE_MAX_PCT);
             const amount = Math.round((basePrice * appliedPct) / 100);
             if (amount > 0) {
-                result.deductions.push({ key: 'device_age', amount, source: 'admin_pct', band: input.deviceAge, pct: appliedPct });
+                result.deductions.push({ key: 'device_age', amount, source: isSet ? 'admin_pct' : 'default_pct', band: input.deviceAge, pct: appliedPct });
             }
         }
     }
@@ -244,6 +246,6 @@ function calculatePrice(phone, input, config = {}) {
 module.exports = {
     calculatePrice, DEFAULT_PCT, WARRANTY_VOID_KEYS, ACC_BONUS, PRICING_OPTIONS, OPTION_LABELS,
     DEFAULT_MISSING_ACCESSORY, MISSING_ACCESSORY_MAX_PCT, MISSING_ACCESSORY_KEYS,
-    DEVICE_AGE_BANDS, DEVICE_AGE_MAX_PCT, DEFAULT_DISPLAY_NOT_ORIGINAL_PCT,
+    DEVICE_AGE_BANDS, DEVICE_AGE_MAX_PCT, DEFAULT_DEVICE_AGE_PCT, DEFAULT_DISPLAY_NOT_ORIGINAL_PCT,
 };
 //# sourceMappingURL=pricingEngine.js.map

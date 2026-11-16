@@ -21,7 +21,15 @@ class CatalogueController {
     // --- Public Customer Endpoints ---
     static async getActiveBrands(req, res, next) {
         try {
-            const brands = await Brand_js_1.BrandModel.find({ isActive: true }).sort({ displayOrder: 1, name: 1 });
+            // ?category=phone|laptop|tablet|tv: only brands that sell that kind of device
+            const category = (0, SmartphoneModel_js_1.normalizeDeviceCategory)(req.query.category);
+            const filter = { isActive: true };
+            if (category) {
+                filter._id = {
+                    $in: await SmartphoneModel_js_1.SmartphoneModel.distinct('brandId', { isPublished: true, isArchived: false, ...(0, SmartphoneModel_js_1.deviceCategoryFilter)(category) }),
+                };
+            }
+            const brands = await Brand_js_1.BrandModel.find(filter).sort({ displayOrder: 1, name: 1 });
             res.status(200).json({ success: true, data: brands });
         }
         catch (err) {
@@ -47,27 +55,14 @@ class CatalogueController {
                     return res.status(200).json({ success: true, data: [] });
                 }
             }
-            const { category } = req.query;
-            let filterQuery = {
+            // ?category=: phones, laptops, tablets and TVs are listed separately (stored on each model)
+            const category = (0, SmartphoneModel_js_1.normalizeDeviceCategory)(req.query.category);
+            const filterQuery = {
                 brandId: targetBrandId,
                 isPublished: true,
                 isArchived: false,
+                ...(category ? (0, SmartphoneModel_js_1.deviceCategoryFilter)(category) : {}),
             };
-            if (category) {
-                const catStr = category.toLowerCase();
-                if (catStr === 'mobile' || catStr === 'phones' || catStr === 'phone') {
-                    filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|macbook air|macbook pro)/i };
-                }
-                else if (catStr === 'laptops' || catStr === 'laptop' || catStr === 'macbook' || catStr === 'macbooks') {
-                    filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift)/i };
-                }
-                else if (catStr === 'tablets' || catStr === 'tablet' || catStr === 'ipad' || catStr === 'ipads') {
-                    filterQuery.name = { $regex: /(ipad|tab|pad)/i };
-                }
-                else if (catStr === 'tv' || catStr === 'tvs' || catStr === 'smart_tv') {
-                    filterQuery.name = { $regex: /(tv|bravia|oled|qled|crystal|uhd)/i };
-                }
-            }
             const models = await SmartphoneModel_js_1.SmartphoneModel.find(filterQuery).sort({ displayOrder: 1, releaseYear: -1, name: 1 });
             const ranges = await DevicePriceResolver_js_1.DevicePriceResolver.priceRanges(models);
             // Each model carries its "Get up to" price (best variant, top condition)
@@ -345,6 +340,9 @@ class CatalogueController {
                 filter.brandId = brandId;
             if (includeArchived !== 'true')
                 filter.isArchived = false;
+            const category = (0, SmartphoneModel_js_1.normalizeDeviceCategory)(req.query.category);
+            if (category)
+                Object.assign(filter, (0, SmartphoneModel_js_1.deviceCategoryFilter)(category));
             const models = await SmartphoneModel_js_1.SmartphoneModel.find(filter)
                 .populate('brandId', 'name slug logoUrl')
                 .sort({ displayOrder: 1, releaseYear: -1, name: 1 });
@@ -370,6 +368,8 @@ class CatalogueController {
     }
     static async adminCreateModel(req, res, next) {
         try {
+            if (req.body && 'category' in req.body)
+                req.body.category = (0, SmartphoneModel_js_1.normalizeDeviceCategory)(req.body.category) ?? 'phone';
             if (req.body && 'deviceAgeDeductions' in req.body) {
                 req.body.deviceAgeDeductions = ValuationEngine_js_1.ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
             }
@@ -423,6 +423,13 @@ class CatalogueController {
     static async adminUpdateModel(req, res, next) {
         try {
             const { id } = req.params;
+            if (req.body && 'category' in req.body) {
+                const category = (0, SmartphoneModel_js_1.normalizeDeviceCategory)(req.body.category);
+                if (category)
+                    req.body.category = category;
+                else
+                    delete req.body.category;
+            }
             if (req.body && 'deviceAgeDeductions' in req.body) {
                 req.body.deviceAgeDeductions = ValuationEngine_js_1.ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
             }

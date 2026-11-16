@@ -18,9 +18,9 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
-    expect(result.totalDeductions).toBe(91809);
-    // Scrap floor only: accessories are part of the price, never an extra
-    expect(result.finalPrice).toBe(2000);
+    // Client's standard: touch 60% + legacy minor scratches 4% + battery 15% + camera glass 9% (no warranty 0%)
+    expect(result.totalDeductions).toBe(79992);
+    expect(result.finalPrice).toBe(10908);
   });
 
   test('Test 2 (BasePrice 90900, flawless, all accessories): screenKey flawless, bodyKey no_scratches_flawless, batteryKey above_90_percent, hardwareKeys [], all accessories true', () => {
@@ -80,9 +80,9 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
-    // 97.8% off by default (admin can change it): lands on the scrap value, 2.2% of 45000
-    expect(result.finalPrice).toBe(990);
-    expect(result.deductions.find((d) => d.key === 'network_or_sim_tray_issue')?.amount).toBe(44010);
+    // Network / SIM 50% + legacy minor dent 5% (no bill: "No valid warranty" is 0% in the standard)
+    expect(result.finalPrice).toBe(20250);
+    expect(result.deductions.find((d) => d.key === 'network_or_sim_tray_issue')?.amount).toBe(22500);
   });
 
   test('Test 5 (same as Test 4 but hardwareKeys [])', () => {
@@ -102,8 +102,8 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
-    // 45000 - 2250 (minor dent 5%) - 8100 (no bill: out of warranty 18%)
-    expect(result.finalPrice).toBe(34650);
+    // 45000 - 2250 (legacy minor dent 5%); no bill costs nothing with the standard 0% "No valid warranty"
+    expect(result.finalPrice).toBe(42750);
   });
 
   test('Test 6: pass an unknown key, e.g. screenKey: abc. Expected: throws Unknown condition key', () => {

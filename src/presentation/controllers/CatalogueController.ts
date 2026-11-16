@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { BrandModel } from '../../infrastructure/database/models/Brand.js';
-import { SmartphoneModel } from '../../infrastructure/database/models/SmartphoneModel.js';
+import { SmartphoneModel, normalizeDeviceCategory, deviceCategoryFilter } from '../../infrastructure/database/models/SmartphoneModel.js';
 import { StorageVariantModel } from '../../infrastructure/database/models/StorageVariant.js';
 import { PricingRuleModel } from '../../infrastructure/database/models/PricingRule.js';
 import { CategoryModel } from '../../infrastructure/database/models/Category.js';
@@ -18,7 +18,15 @@ export class CatalogueController {
   // --- Public Customer Endpoints ---
   public static async getActiveBrands(req: Request, res: Response, next: NextFunction) {
     try {
-      const brands = await BrandModel.find({ isActive: true }).sort({ displayOrder: 1, name: 1 });
+      // ?category=phone|laptop|tablet|tv: only brands that sell that kind of device
+      const category = normalizeDeviceCategory(req.query.category);
+      const filter: any = { isActive: true };
+      if (category) {
+        filter._id = {
+          $in: await SmartphoneModel.distinct('brandId', { isPublished: true, isArchived: false, ...deviceCategoryFilter(category) }),
+        };
+      }
+      const brands = await BrandModel.find(filter).sort({ displayOrder: 1, name: 1 });
       res.status(200).json({ success: true, data: brands });
     } catch (err) {
       next(err);
@@ -44,25 +52,14 @@ export class CatalogueController {
         }
       }
 
-      const { category } = req.query;
-      let filterQuery: any = {
+      // ?category=: phones, laptops, tablets and TVs are listed separately (stored on each model)
+      const category = normalizeDeviceCategory(req.query.category);
+      const filterQuery: any = {
         brandId: targetBrandId,
         isPublished: true,
         isArchived: false,
+        ...(category ? deviceCategoryFilter(category) : {}),
       };
-
-      if (category) {
-        const catStr = (category as string).toLowerCase();
-        if (catStr === 'mobile' || catStr === 'phones' || catStr === 'phone') {
-          filterQuery.name = { $not: /(macbook|laptop|notebook|thinkpad|alienware|xps|ipad|tablet|tv|oled|bravia|macbook air|macbook pro)/i };
-        } else if (catStr === 'laptops' || catStr === 'laptop' || catStr === 'macbook' || catStr === 'macbooks') {
-          filterQuery.name = { $regex: /(macbook|laptop|notebook|thinkpad|xps|alienware|zenbook|vivobook|omen|predator|swift)/i };
-        } else if (catStr === 'tablets' || catStr === 'tablet' || catStr === 'ipad' || catStr === 'ipads') {
-          filterQuery.name = { $regex: /(ipad|tab|pad)/i };
-        } else if (catStr === 'tv' || catStr === 'tvs' || catStr === 'smart_tv') {
-          filterQuery.name = { $regex: /(tv|bravia|oled|qled|crystal|uhd)/i };
-        }
-      }
 
       const models = await SmartphoneModel.find(filterQuery).sort({ displayOrder: 1, releaseYear: -1, name: 1 });
       const ranges = await DevicePriceResolver.priceRanges(models);
@@ -392,6 +389,8 @@ export class CatalogueController {
       const filter: any = {};
       if (brandId) filter.brandId = brandId;
       if (includeArchived !== 'true') filter.isArchived = false;
+      const category = normalizeDeviceCategory(req.query.category);
+      if (category) Object.assign(filter, deviceCategoryFilter(category));
 
       const models = await SmartphoneModel.find(filter)
         .populate('brandId', 'name slug logoUrl')
@@ -420,6 +419,7 @@ export class CatalogueController {
 
   public static async adminCreateModel(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
+      if (req.body && 'category' in req.body) req.body.category = normalizeDeviceCategory(req.body.category) ?? 'phone';
       if (req.body && 'deviceAgeDeductions' in req.body) {
         req.body.deviceAgeDeductions = ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
       }
@@ -476,6 +476,11 @@ export class CatalogueController {
   public static async adminUpdateModel(req: AuthenticatedAdminRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
+      if (req.body && 'category' in req.body) {
+        const category = normalizeDeviceCategory(req.body.category);
+        if (category) req.body.category = category;
+        else delete req.body.category;
+      }
       if (req.body && 'deviceAgeDeductions' in req.body) {
         req.body.deviceAgeDeductions = ValuationEngine.sanitizeDeviceAgePercentages(req.body.deviceAgeDeductions) || {};
       }

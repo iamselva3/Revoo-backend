@@ -37,8 +37,11 @@ const withOptionDefaults = (saved) => {
     }
     return out;
 };
-/** The model-wide rule the price engine uses (the newest one without a variant). */
-const findModelRule = (modelId) => PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true, variantId: null }).sort({ version: -1, updatedAt: -1 });
+/**
+ * The model-wide rule the price engine uses: the newest one without a variant (older rules mark their
+ * variant as storageVariantId).
+ */
+const findModelRule = (modelId) => PricingRule_js_1.PricingRuleModel.findOne({ modelId, isActive: true, variantId: null, storageVariantId: null }).sort({ version: -1, updatedAt: -1 });
 class PricingController {
     static async getPricingRuleForModel(req, res, next) {
         try {

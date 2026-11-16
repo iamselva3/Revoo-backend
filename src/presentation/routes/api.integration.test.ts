@@ -353,10 +353,13 @@ describe('REVOO Backend Integration Tests', () => {
         const shown = await request(app).get(`/api/v1/pricing/model/${sampleModelId}`).set(auth);
         expect(shown.status).toBe(200);
         const dp = shown.body.data.deductionPercentages;
-        expect(dp.basicQuestions).toMatchObject({ phoneNotWorking: 97.8, touchscreenNotWorking: 62, displayNotOriginal: 10, noWarranty: 18 });
+        // The client's standard %
+        expect(dp.basicQuestions).toMatchObject({ phoneNotWorking: 87.9, touchscreenNotWorking: 60, displayNotOriginal: 65, noWarranty: 0 });
         expect(dp.screenDisplay).toMatchObject({ MINOR_SPOTS: 12, MAJOR_SPOTS_OR_LINES: 28 });
         expect(dp.touchGlass).toMatchObject({ MINOR_SCRATCHES: 6, HEAVY_SCRATCHES: 12, CRACKED_GLASS: 35 });
-        expect(dp.hardwareFaults).toMatchObject({ vibratorNotWorking: 2, proximitySensorNotWorking: 3, networkProblem: 97.8 });
+        expect(dp.backPanel).toMatchObject({ MINOR_SCRATCHES: 3, HEAVY_SCRATCHES: 8, BACK_PANEL_BROKEN: 15 });
+        expect(dp.sidePanel).toMatchObject({ MINOR_DENT_OR_SCRATCHES: 3, HEAVY_DENT: 8, BENT_OR_BROKEN: 12 });
+        expect(dp.hardwareFaults).toMatchObject({ batteryHealthBelow83: 15, vibratorNotWorking: 5, proximitySensorNotWorking: 8, networkProblem: 50 });
         expect(await quote()).toBe(75000 - 9000); // heavy glass scratches 12% by default
 
         // The admin saves 20% for heavy glass scratches: the quote follows
@@ -371,6 +374,32 @@ describe('REVOO Backend Integration Tests', () => {
       } finally {
         await PricingRuleModel.deleteMany({ modelId: sampleModelId, _id: { $nin: before.map((r) => r._id) } });
         await PricingRuleModel.updateMany({ _id: { $in: before.map((r) => r._id) } }, { $set: { isActive: true } });
+      }
+    });
+
+    test('phones, laptops and TVs are listed separately (stored category, not the name)', async () => {
+      const laptopBrand = await BrandModel.create({ name: 'LaptopOnly', slug: 'laptoponly', isActive: true });
+      const laptop = await SmartphoneModel.create({ brandId: laptopBrand._id, name: 'Some Ultrabook 14', slug: 'some-ultrabook-14', basePrice: 50000, category: 'laptop' });
+      const tv = await SmartphoneModel.create({ brandId: sampleBrandId, name: 'Crystal 43 inch', slug: 'crystal-43-inch', basePrice: 20000, category: 'tv' });
+      try {
+        const names = async (category: string) =>
+          (await request(app).get(`/api/v1/catalogue/brands/${sampleBrandId}/models`).query({ category })).body.data.map((m: any) => m.name);
+        // The website says "phone", the app says "mobile" / "laptops" / "tv"
+        expect(await names('phone')).not.toContain('Crystal 43 inch');
+        expect(await names('mobile')).toEqual(await names('phone'));
+        expect(await names('tv')).toEqual(['Crystal 43 inch']);
+
+        const brands = async (category?: string) =>
+          (await request(app).get('/api/v1/catalogue/brands').query(category ? { category } : {})).body.data.map((b: any) => b.slug);
+        expect(await brands('phone')).not.toContain('laptoponly');
+        expect(await brands('laptops')).toEqual(['laptoponly']);
+        expect(await brands()).toContain('laptoponly'); // no category: every active brand (older apps)
+
+        const admin = await request(app).get('/api/v1/catalogue/admin/models').query({ category: 'laptop' }).set('Authorization', `Bearer ${adminToken}`);
+        expect(admin.body.data.map((m: any) => m.name)).toEqual(['Some Ultrabook 14']);
+      } finally {
+        await SmartphoneModel.deleteMany({ _id: { $in: [laptop._id, tv._id] } });
+        await BrandModel.deleteOne({ _id: laptopBrand._id });
       }
     });
 

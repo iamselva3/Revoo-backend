@@ -93,5 +93,7 @@ export declare const MISSING_ACCESSORY_MAX_PCT: number;
 export declare const MISSING_ACCESSORY_KEYS: { original_charger: string; box_same_imei: string };
 export declare const DEVICE_AGE_BANDS: DeviceAgeBand[];
 export declare const DEVICE_AGE_MAX_PCT: number;
+/** Client's standard % per age band, used when a model hasn't set its own. */
+export declare const DEFAULT_DEVICE_AGE_PCT: Record<DeviceAgeBand, number>;
 export declare const DEFAULT_DISPLAY_NOT_ORIGINAL_PCT: number;
 
