@@ -43,6 +43,15 @@ export const config = {
     from: process.env.EMAIL_FROM || process.env.SMTP_USER || 'genietnsupport@gmail.com',
     fromName: process.env.EMAIL_FROM_NAME || 'Genie',
   },
+  adminAlerts: {
+    // Who gets an email for every new pickup request, Buy order and enquiry (comma-separated)
+    emails: (process.env.ADMIN_NOTIFY_EMAILS || 'genietnsupport@gmail.com')
+      .split(',')
+      .map((e) => e.trim())
+      .filter(Boolean),
+    // The admin portal, for the "Open in admin" button
+    adminUrl: (process.env.ADMIN_URL || 'https://admin.genietn.in').replace(/\/+$/, ''),
+  },
   google: {
     // Comma-separated extra OAuth client IDs whose Google tokens we accept (e.g. web + Android).
     allowedClientIds: (process.env.GOOGLE_ALLOWED_CLIENT_IDS || '')

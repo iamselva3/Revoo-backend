@@ -16,6 +16,7 @@ const ValuationEngine_js_1 = require("../../domain/services/ValuationEngine.js")
 const DevicePriceResolver_js_1 = require("../../infrastructure/pricing/DevicePriceResolver.js");
 const contact_js_1 = require("../../shared/contact.js");
 const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
+const adminAlerts_js_1 = require("../../infrastructure/notifications/adminAlerts.js");
 const types_js_1 = require("../../shared/types.js");
 const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
 const StorageService_js_1 = require("../../infrastructure/storage/StorageService.js");
@@ -270,6 +271,8 @@ class BuybackRequestController {
                 body: `New request for ${model.name} (${storageCapacity}) with estimate ₹${valuation.finalCalculatedAmount}.`,
                 metadata: { requestId: buybackRequest._id, requestNumber },
             });
+            // Email the team (not awaited: the customer's booking never waits on the mail server)
+            void NotificationService_js_1.NotificationService.emailAdmins((0, adminAlerts_js_1.newPickupRequestAlert)(buybackRequest.toObject()));
             res.status(201).json({
                 success: true,
                 message: 'Buyback request submitted successfully.',

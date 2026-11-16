@@ -4,6 +4,7 @@ exports.EnquiryController = void 0;
 const CustomerEnquiry_js_1 = require("../../infrastructure/database/models/CustomerEnquiry.js");
 const types_js_1 = require("../../shared/types.js");
 const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
+const adminAlerts_js_1 = require("../../infrastructure/notifications/adminAlerts.js");
 class EnquiryController {
     static async submitEnquiry(req, res, next) {
         try {
@@ -28,6 +29,7 @@ class EnquiryController {
                 body: `New enquiry from ${name}: "${subject}"`,
                 metadata: { ticketNumber, enquiryId: enquiry._id },
             });
+            void NotificationService_js_1.NotificationService.emailAdmins((0, adminAlerts_js_1.newEnquiryAlert)(enquiry.toObject()));
             res.status(201).json({
                 success: true,
                 message: 'Your enquiry has been received. Our team will contact you shortly.',

@@ -3,6 +3,7 @@ import { CustomerEnquiryModel } from '../../infrastructure/database/models/Custo
 import { AppError, EnquiryStatus } from '../../shared/types.js';
 import { AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
+import { newEnquiryAlert } from '../../infrastructure/notifications/adminAlerts.js';
 
 export class EnquiryController {
   public static async submitEnquiry(req: Request, res: Response, next: NextFunction) {
@@ -30,6 +31,7 @@ export class EnquiryController {
         body: `New enquiry from ${name}: "${subject}"`,
         metadata: { ticketNumber, enquiryId: enquiry._id },
       });
+      void NotificationService.emailAdmins(newEnquiryAlert(enquiry.toObject()));
 
       res.status(201).json({
         success: true,

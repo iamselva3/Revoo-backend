@@ -14,6 +14,7 @@ import { ValuationEngine } from '../../domain/services/ValuationEngine.js';
 import { DevicePriceResolver } from '../../infrastructure/pricing/DevicePriceResolver.js';
 import { normalizeIndianMobile } from '../../shared/contact.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
+import { newPickupRequestAlert } from '../../infrastructure/notifications/adminAlerts.js';
 import { AppError, RequestStatus, FinalOfferStatus, PaymentStatus, ReturnStatus } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedCustomerRequest, AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
@@ -296,6 +297,8 @@ export class BuybackRequestController {
         body: `New request for ${model.name} (${storageCapacity}) with estimate ₹${valuation.finalCalculatedAmount}.`,
         metadata: { requestId: buybackRequest._id, requestNumber },
       });
+      // Email the team (not awaited: the customer's booking never waits on the mail server)
+      void NotificationService.emailAdmins(newPickupRequestAlert(buybackRequest.toObject()));
 
       res.status(201).json({
         success: true,

@@ -17,6 +17,8 @@ const ValuationEngine_js_1 = require("../../domain/services/ValuationEngine.js")
 const types_js_1 = require("../../shared/types.js");
 const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
 const DevicePriceResolver_js_1 = require("../../infrastructure/pricing/DevicePriceResolver.js");
+const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
+const adminAlerts_js_1 = require("../../infrastructure/notifications/adminAlerts.js");
 class CatalogueController {
     // --- Public Customer Endpoints ---
     static async getActiveBrands(req, res, next) {
@@ -1176,6 +1178,8 @@ class CatalogueController {
                 invoiceData.orderNumber = `GENIE-${Date.now().toString().slice(-6)}`;
             }
             const invoice = await Invoice_js_1.InvoiceModel.create(invoiceData);
+            // Email the team about the new Buy order (not awaited)
+            void NotificationService_js_1.NotificationService.emailAdmins((0, adminAlerts_js_1.newBuyOrderAlert)(invoice.toObject()));
             res.status(201).json({
                 success: true,
                 message: 'Order placed & invoice generated successfully.',

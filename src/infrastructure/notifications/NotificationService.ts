@@ -24,6 +24,74 @@ const PLACEHOLDER_VALUES = new Set(['', 'dummy', 'changeme', 'your-smtp-user', '
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 
+export interface AdminAlertField {
+  label: string;
+  /** Rows without a value are left out */
+  value?: string | number | null;
+  /** Makes the value a link (tel:, mailto:, https:) */
+  href?: string;
+}
+
+/** An email to the Genie team about something a customer just sent us. */
+export interface AdminAlert {
+  subject: string;
+  intro: string;
+  fields: AdminAlertField[];
+  /** Customer's email: hitting Reply in the inbox answers them */
+  replyTo?: string;
+  link?: { label: string; url: string };
+}
+
+const presentFields = (fields: AdminAlertField[]) =>
+  fields.filter((f) => f.value !== undefined && f.value !== null && String(f.value).trim() !== '');
+
+/** Plain card with one labelled row per detail, like a form-submission email. */
+export const adminAlertHtml = (alert: AdminAlert): string => {
+  const rows = presentFields(alert.fields)
+    .map((f) => {
+      const text = escapeHtml(String(f.value).trim()).replace(/\r?\n/g, '<br>');
+      const value = f.href
+        ? `<a href="${escapeHtml(f.href)}" style="color:#1d4ed8;text-decoration:underline;">${text}</a>`
+        : text;
+      return `<tr><td style="padding:0 0 16px;">
+            <div style="font-size:13px;font-weight:700;color:#3730a3;margin:0 0 4px;">${escapeHtml(f.label)}</div>
+            <div style="font-size:15px;line-height:1.5;color:#1f2937;">${value}</div>
+          </td></tr>`;
+    })
+    .join('');
+  const button = alert.link
+    ? `<tr><td style="padding:4px 0 0;"><a href="${escapeHtml(alert.link.url)}" style="display:inline-block;background:#f59e0b;color:#1f1147;font-weight:700;font-size:14px;text-decoration:none;padding:11px 20px;border-radius:12px;">${escapeHtml(alert.link.label)}</a></td></tr>`
+    : '';
+
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f6f7f9;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;border:1px solid #e5e7eb;font-family:'Segoe UI',Arial,sans-serif;">
+        <tr><td style="padding:26px 28px 6px;">
+          <p style="margin:0 0 10px;font-size:15px;color:#1f2937;">Hello,</p>
+          <p style="margin:0 0 22px;font-size:15px;line-height:1.5;color:#1f2937;">${escapeHtml(alert.intro)}</p>
+        </td></tr>
+        <tr><td style="padding:0 28px 22px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}${button}</table>
+        </td></tr>
+      </table>
+      <p style="margin:14px 0 0;font-size:12px;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;">Sent by Genie</p>
+    </td></tr>
+  </table>
+</body></html>`;
+};
+
+export const adminAlertText = (alert: AdminAlert): string =>
+  [
+    'Hello,',
+    '',
+    alert.intro,
+    '',
+    ...presentFields(alert.fields).map((f) => `${f.label}: ${String(f.value).trim()}`),
+    ...(alert.link ? ['', `${alert.link.label}: ${alert.link.url}`] : []),
+  ].join('\n');
+
 export class NotificationService {
   private static transporter: nodemailer.Transporter | null = null;
 
@@ -161,6 +229,35 @@ export class NotificationService {
     }
     console.log(`[EMAIL ADAPTER (DEV)] OTP for ${destination}: ${otp}`);
     return { success: true, delivered: false, message: 'Email OTP sent (Development sandbox)' };
+  }
+
+  /**
+   * Emails the Genie team (ADMIN_NOTIFY_EMAILS, default genietnsupport@gmail.com) about a new
+   * customer submission. Never throws and never slows the customer down: callers don't await it.
+   * Skipped in tests, so the test suite never mails the real inbox.
+   */
+  public static async emailAdmins(alert: AdminAlert): Promise<boolean> {
+    if (process.env.NODE_ENV === 'test') return false;
+    const to = config.adminAlerts.emails;
+    if (!to.length) return false;
+    if (!NotificationService.isEmailConfigured()) {
+      console.warn(`[NotificationService] Admin email "${alert.subject}" not sent: SMTP is not configured.`);
+      return false;
+    }
+    try {
+      await NotificationService.getMailTransporter().sendMail({
+        from: NotificationService.fromAddress(),
+        to: to.join(', '),
+        replyTo: alert.replyTo || undefined,
+        subject: alert.subject,
+        text: adminAlertText(alert),
+        html: adminAlertHtml(alert),
+      });
+      return true;
+    } catch (err: any) {
+      console.error('[NotificationService] Admin email failed:', err?.message || err);
+      return false;
+    }
   }
 
   public static async notify(options: SendNotificationOptions): Promise<void> {

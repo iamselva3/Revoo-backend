@@ -13,6 +13,8 @@ import { AppError } from '../../shared/types.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
 import { AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
 import { DevicePriceResolver } from '../../infrastructure/pricing/DevicePriceResolver.js';
+import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
+import { newBuyOrderAlert } from '../../infrastructure/notifications/adminAlerts.js';
 
 export class CatalogueController {
   // --- Public Customer Endpoints ---
@@ -1266,6 +1268,8 @@ export class CatalogueController {
       }
 
       const invoice = await InvoiceModel.create(invoiceData);
+      // Email the team about the new Buy order (not awaited)
+      void NotificationService.emailAdmins(newBuyOrderAlert(invoice.toObject()));
       res.status(201).json({
         success: true,
         message: 'Order placed & invoice generated successfully.',

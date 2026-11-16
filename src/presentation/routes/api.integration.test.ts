@@ -545,11 +545,23 @@ describe('REVOO Backend Integration Tests', () => {
     });
 
     test('POST /api/v1/requests accepts the website booking payload', async () => {
+      const email = jest.spyOn(NotificationService, 'emailAdmins');
       const res = await request(app).post('/api/v1/requests').set('Authorization', `Bearer ${tokenA}`).send(webBooking());
 
       expect(res.status).toBe(201);
       const saved = res.body.data;
       requestNumber = saved.requestNumber;
+      // The team gets an email about the new request
+      expect(email).toHaveBeenCalledTimes(1);
+      const alert = email.mock.calls[0][0];
+      expect(alert.subject).toContain(saved.requestNumber);
+      expect(alert.replyTo).toBe('booking.a@revoo.test');
+      expect(alert.fields).toEqual(expect.arrayContaining([
+        { label: 'Full name', value: 'Selva Ganesh' },
+        { label: 'Phone', value: '+91 98450 12345', href: 'tel:+919845012345' },
+        { label: 'Payout', value: 'UPI · selva@okhdfcbank' },
+      ]));
+      email.mockRestore();
       expect(saved.pickupAddress.street).toBe('No. 42, North Mada Street');
       expect(saved.pickupAddress.area).toBe('Anna Nagar');
       expect(saved.pickupAddress.pincode).toBe('600040');
@@ -628,6 +640,29 @@ describe('REVOO Backend Integration Tests', () => {
         .set('Authorization', `Bearer ${tokenB}`)
         .send({ phone: '9845012345' });
       expect(res.status).toBe(409);
+    });
+  });
+
+  describe('Team emails for enquiries and Buy orders', () => {
+    test('a new enquiry emails the team', async () => {
+      const email = jest.spyOn(NotificationService, 'emailAdmins');
+      const res = await request(app).post('/api/v1/enquiries').send({ name: 'Selva', email: 'Selva@Example.com', phone: '9845012345', subject: 'Pickup time', message: 'After 5 pm please' });
+      expect(res.status).toBe(201);
+      expect(email).toHaveBeenCalledTimes(1);
+      expect(email.mock.calls[0][0]).toMatchObject({ subject: `New enquiry ${res.body.data.ticketNumber}: Pickup time`, replyTo: 'selva@example.com' });
+      email.mockRestore();
+    });
+
+    test('a new Buy order from the app emails the team', async () => {
+      const email = jest.spyOn(NotificationService, 'emailAdmins');
+      const res = await request(app).post('/api/v1/catalogue/orders').send({
+        customerName: 'Priya', customerPhone: '9962067890', customerEmail: 'priya@example.com', shippingAddress: '15, 2nd Avenue, Chennai - 600040',
+        productName: 'Galaxy S24 Ultra', brand: 'Samsung', unitPrice: 84999, totalAmount: 84999,
+      });
+      expect(res.status).toBe(201);
+      expect(email).toHaveBeenCalledTimes(1);
+      expect(email.mock.calls[0][0].subject).toBe(`New Buy order ${res.body.data.orderNumber}: Galaxy S24 Ultra · ₹84,999`);
+      email.mockRestore();
     });
   });
 
