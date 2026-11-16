@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { IndiaStateModel, IndiaLocationModel } from '../../infrastructure/database/models/IndiaLocation.js';
 import { MapplsGeocoder, MapplsError } from '../../infrastructure/geo/MapplsGeocoder.js';
+import { PincodeDirectory } from '../../infrastructure/geo/PincodeDirectory.js';
 
 export class GeoController {
   /**
@@ -175,6 +176,26 @@ export class GeoController {
     } catch (err) {
       console.error('[GeoController] lookupPincode error:', err);
       return res.status(500).json({ success: false, message: 'Server error while checking PIN code' });
+    }
+  }
+
+  /**
+   * GET /api/v1/geo/areas/:pincode
+   * City, taluk, district, state and the areas inside a PIN code (Mappls, then India Post), so a
+   * customer who types a PIN code can pick their area.
+   */
+  static async pincodeAreas(req: Request, res: Response) {
+    const pincode = String(req.params.pincode || '').trim();
+    if (!/^\d{6}$/.test(pincode)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 6-digit PIN code' });
+    }
+    try {
+      const data = await PincodeDirectory.details(pincode);
+      if (!data) return res.status(404).json({ success: false, message: 'No areas found for this PIN code' });
+      return res.status(200).json({ success: true, data });
+    } catch (err) {
+      console.error('[GeoController] pincodeAreas error:', (err as Error)?.message);
+      return res.status(500).json({ success: false, message: 'Server error while finding areas' });
     }
   }
 

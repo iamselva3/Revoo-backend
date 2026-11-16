@@ -115,6 +115,8 @@ describe('whole API smoke test', () => {
     await call('pincode invalid', 'get', '/geo/pincode/12', { expect: [400, 404] });
     await call('reverse geocode', 'get', '/geo/reverse?lat=13.0878&lng=80.2101');
     await call('reverse geocode invalid', 'get', '/geo/reverse?lat=abc', { expect: [400] });
+    await call('pincode areas', 'get', '/geo/areas/600040');
+    await call('pincode areas invalid', 'get', '/geo/areas/12', { expect: [400] });
     await call('staff list without sign-in (must refuse)', 'get', '/employees', { expect: [401] });
     await call('staff recommend without sign-in (must refuse)', 'get', '/employees/recommend?district=Chennai', { expect: [401] });
     await call('staff list (admin)', 'get', '/employees', { token: admin });

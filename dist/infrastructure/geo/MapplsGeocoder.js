@@ -10,6 +10,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MapplsGeocoder = exports.toAddress = exports.MapplsError = void 0;
 const SEARCH_URL = 'https://search.mappls.com/search/address/rev-geocode';
+const GEOCODE_URL = 'https://search.mappls.com/search/address/geocode';
+const AUTOSUGGEST_URL = 'https://search.mappls.com/search/places/autosuggest/json';
 // Keys from the older Mappls console only work on the older address (key in the path)
 const LEGACY_URL = (key) => `https://apis.mappls.com/advancedmaps/v1/${encodeURIComponent(key)}/rev_geocode`;
 // Answers that mean "this key isn't for this address" rather than "the service is down"
@@ -57,15 +59,23 @@ const toAddress = (r) => {
     };
 };
 exports.toAddress = toAddress;
-const fetchFirstResult = async (url) => {
+const fetchJson = async (url) => {
     const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (res.status === 204)
+        return null;
     if (!res.ok)
         throw new MapplsError(res.status);
     const body = await res.json().catch(() => null);
     if (body?.responseCode && Number(body.responseCode) !== 200)
         throw new MapplsError(Number(body.responseCode));
+    return body;
+};
+const fetchFirstResult = async (url) => {
+    const body = await fetchJson(url);
     return Array.isArray(body?.results) && body.results.length ? body.results[0] : null;
 };
+// Autosuggest types that name an area, not a shop or landmark
+const AREA_TYPES = /locality|village|city|town|sub_?district/i;
 exports.MapplsGeocoder = {
     isConfigured: () => Boolean(process.env.MAPPLS_API_KEY?.trim()),
     /** Null when no key is set or Mappls has no address there. Throws when Mappls can't be reached. */
@@ -94,6 +104,55 @@ exports.MapplsGeocoder = {
             cache.delete(cache.keys().next().value);
         cache.set(cacheKey, { at: Date.now(), value });
         return value;
+    },
+    /**
+     * A typed PIN code -> its city, taluk, district, state (Mappls geocoding) and the areas inside it
+     * (Mappls autosuggest limited to that PIN code). Null without a key; throws when both calls fail.
+     */
+    async pincode(pin) {
+        const key = process.env.MAPPLS_API_KEY?.trim();
+        if (!key || !/^\d{6}$/.test(pin))
+            return null;
+        const token = `access_token=${encodeURIComponent(key)}`;
+        const [geo, suggest] = await Promise.allSettled([
+            fetchJson(`${GEOCODE_URL}?address=${pin}&podFilter=pincode&${token}`),
+            fetchJson(`${AUTOSUGGEST_URL}?query=${pin}&filter=pin:${pin}&tokenizeAddress&${token}`),
+        ]);
+        if (geo.status === 'rejected' && suggest.status === 'rejected')
+            throw geo.reason;
+        const cop = geo.status === 'fulfilled' ? geo.value?.copResults : null;
+        const first = Array.isArray(cop) ? cop[0] : cop;
+        const samePin = first && String(first.pincode ?? '').replace(/\D/g, '') === pin;
+        const areas = [];
+        const add = (v) => {
+            const name = text(v);
+            if (name && !areas.some((a) => a.toLowerCase() === name.toLowerCase()))
+                areas.push(name);
+        };
+        const places = suggest.status === 'fulfilled' && Array.isArray(suggest.value?.suggestedLocations) ? suggest.value.suggestedLocations : [];
+        for (const p of places) {
+            const t = p?.addressTokens || {};
+            const tokenPin = String(t.pincode ?? '').replace(/\D/g, '');
+            if (tokenPin && tokenPin !== pin)
+                continue;
+            add(t.subLocality);
+            add(t.locality);
+            add(t.village);
+            if (AREA_TYPES.test(String(p?.type ?? '')))
+                add(p?.placeName);
+        }
+        if (samePin) {
+            add(first.subLocality);
+            add(first.locality);
+            add(first.village);
+        }
+        return {
+            city: samePin ? text(first.city) || text(first.subDistrict) : undefined,
+            district: samePin ? withoutDistrict(text(first.district)) : undefined,
+            subDistrict: samePin ? text(first.subDistrict) : undefined,
+            state: samePin ? text(first.state) : undefined,
+            areas,
+        };
     },
     /** Tests only */
     clearCache: () => cache.clear(),

@@ -119,3 +119,83 @@ describe('MapplsGeocoder', () => {
     });
   });
 });
+
+describe('typed PIN code -> areas', () => {
+  const realKey = process.env.MAPPLS_API_KEY;
+  let fetchMock: jest.SpyInstance;
+  const GEOCODE = { copResults: { pincode: '626125', city: 'Srivilliputhur', district: 'Virudhunagar District', subDistrict: 'Srivilliputhur', state: 'Tamil Nadu', locality: '' } };
+  const SUGGEST = {
+    suggestedLocations: [
+      { placeName: 'Mamsapuram', type: 'VILLAGE', addressTokens: { village: 'Mamsapuram', pincode: '626125' } },
+      { placeName: 'Madavarvilagam', type: 'LOCALITY', addressTokens: { locality: 'Madavarvilagam', city: 'Srivilliputhur', pincode: '626125' } },
+      { placeName: 'Sri Andal Temple', type: 'POI', addressTokens: { locality: 'Madavarvilagam', pincode: '626125' } },
+      { placeName: 'Rajapalayam', type: 'CITY', addressTokens: { city: 'Rajapalayam', pincode: '626117' } },
+    ],
+  };
+  const POST = [{ Status: 'Success', PostOffice: [
+    { Name: 'Srivilliputhur', Block: 'Srivilliputhur', District: 'Virudhunagar', State: 'Tamil Nadu' },
+    { Name: 'Mamsapuram', Block: 'Srivilliputhur', District: 'Virudhunagar', State: 'Tamil Nadu' },
+    { Name: 'Pillaiyarnatham', Block: 'NA', District: 'Virudhunagar', State: 'Tamil Nadu' },
+  ] }];
+
+  const route = (opts: { mappls?: 'ok' | 'down'; post?: 'ok' | 'down' } = {}) =>
+    fetchMock.mockImplementation((async (url: any) => {
+      const u = String(url);
+      if (u.includes('postalpincode.in')) return opts.post === 'down' ? Promise.reject(new Error('timeout')) : json(POST);
+      if (opts.mappls === 'down') return json({ error: 'down' }, 503);
+      if (u.includes('/address/geocode')) return json(GEOCODE);
+      if (u.includes('/autosuggest/')) return json(SUGGEST);
+      throw new Error('unexpected ' + u);
+    }) as any);
+
+  beforeEach(async () => {
+    process.env.MAPPLS_API_KEY = 'test-key';
+    fetchMock = jest.spyOn(global, 'fetch');
+    const { PincodeDirectory } = await import('./PincodeDirectory.js');
+    PincodeDirectory.clearCache();
+    const { IndiaLocationModel } = await import('../database/models/IndiaLocation.js');
+    jest.spyOn(IndiaLocationModel, 'findOne').mockReturnValue({ lean: () => Promise.resolve(null) } as any);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    if (realKey === undefined) delete process.env.MAPPLS_API_KEY;
+    else process.env.MAPPLS_API_KEY = realKey;
+  });
+
+  it('Mappls: city, taluk, district and the areas inside the PIN code (no landmarks, no other PIN codes)', async () => {
+    route();
+    const place = await MapplsGeocoder.pincode('626125');
+    expect(place).toEqual({ city: 'Srivilliputhur', district: 'Virudhunagar', subDistrict: 'Srivilliputhur', state: 'Tamil Nadu', areas: ['Mamsapuram', 'Madavarvilagam'] });
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.startsWith('https://search.mappls.com/search/address/geocode?address=626125&podFilter=pincode&access_token=test-key'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('https://search.mappls.com/search/places/autosuggest/json?query=626125&filter=pin:626125'))).toBe(true);
+  });
+
+  it('GET /geo/areas/:pincode: Mappls areas first, then post offices, no repeats', async () => {
+    route();
+    const res = await request(app).get('/api/v1/geo/areas/626125');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      pincode: '626125', city: 'Srivilliputhur', district: 'Virudhunagar', subDistrict: 'Srivilliputhur', state: 'Tamil Nadu',
+      areas: ['Mamsapuram', 'Madavarvilagam', 'Srivilliputhur', 'Pillaiyarnatham'],
+      sources: ['mappls', 'indiapost'],
+    });
+  });
+
+  it('Mappls down: the post-office list still gives the areas', async () => {
+    route({ mappls: 'down' });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const res = await request(app).get('/api/v1/geo/areas/626125');
+    expect(res.body.data).toMatchObject({ city: 'Srivilliputhur', district: 'Virudhunagar', subDistrict: 'Srivilliputhur', areas: ['Srivilliputhur', 'Mamsapuram', 'Pillaiyarnatham'], sources: ['indiapost'] });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('test-key');
+  });
+
+  it('no key and India Post down: 404; bad PIN codes: 400', async () => {
+    delete process.env.MAPPLS_API_KEY;
+    route({ post: 'down' });
+    expect((await request(app).get('/api/v1/geo/areas/626125')).status).toBe(404);
+    expect((await request(app).get('/api/v1/geo/areas/62612')).status).toBe(400);
+    expect((await request(app).get('/api/v1/geo/areas/abcdef')).status).toBe(400);
+  });
+});

@@ -43,3 +43,17 @@ export const geoLookupLimiter = rateLimit({
     message: 'Too many location lookups. Please enter your pincode instead.',
   },
 });
+
+// Typed PIN code -> areas via Mappls: separate allowance, as customers may try a few PIN codes
+export const pincodeAreasLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 60,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  message: {
+    success: false,
+    message: 'Too many PIN code lookups. Please wait a few minutes.',
+  },
+});

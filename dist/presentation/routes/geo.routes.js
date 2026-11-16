@@ -8,5 +8,6 @@ router.get('/states', GeoController_js_1.GeoController.getStates);
 router.get('/cities', GeoController_js_1.GeoController.getCities);
 router.get('/pincode/:pincode', GeoController_js_1.GeoController.lookupPincode);
 router.get('/reverse', rateLimiter_middleware_js_1.geoLookupLimiter, GeoController_js_1.GeoController.reverseGeocode);
+router.get('/areas/:pincode', rateLimiter_middleware_js_1.pincodeAreasLimiter, GeoController_js_1.GeoController.pincodeAreas);
 exports.default = router;
 //# sourceMappingURL=geo.routes.js.map

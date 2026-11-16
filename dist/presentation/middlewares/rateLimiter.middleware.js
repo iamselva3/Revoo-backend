@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.geoLookupLimiter = exports.otpLimiter = exports.authLimiter = void 0;
+exports.pincodeAreasLimiter = exports.geoLookupLimiter = exports.otpLimiter = exports.authLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // Only abuse-prone routes (auth, and the quota-limited Mappls lookup) are rate limited; there is deliberately
 // no app-wide limiter.
@@ -42,6 +42,19 @@ exports.geoLookupLimiter = (0, express_rate_limit_1.default)({
     message: {
         success: false,
         message: 'Too many location lookups. Please enter your pincode instead.',
+    },
+});
+// Typed PIN code -> areas via Mappls: separate allowance, as customers may try a few PIN codes
+exports.pincodeAreasLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 60,
+    skip: () => process.env.NODE_ENV === 'test',
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
+    message: {
+        success: false,
+        message: 'Too many PIN code lookups. Please wait a few minutes.',
     },
 });
 //# sourceMappingURL=rateLimiter.middleware.js.map
