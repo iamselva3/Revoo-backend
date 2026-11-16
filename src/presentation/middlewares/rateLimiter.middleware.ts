@@ -1,6 +1,7 @@
 import rateLimit from 'express-rate-limit';
 
-// Only abuse-prone auth routes are rate limited; there is deliberately no app-wide limiter.
+// Only abuse-prone routes (auth, and the quota-limited Mappls lookup) are rate limited; there is deliberately
+// no app-wide limiter.
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -28,3 +29,17 @@ export const otpLimiter = rateLimit({
   },
 });
 
+
+// GPS -> address via Mappls: protects the Mappls daily quota from one address hammering it
+export const geoLookupLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 30,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  message: {
+    success: false,
+    message: 'Too many location lookups. Please enter your pincode instead.',
+  },
+});

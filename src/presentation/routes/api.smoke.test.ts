@@ -3,7 +3,7 @@
  * from booking through inspection, offer, payment and return. Fails if any call answers with a
  * server error or an unexpected status (bad ids and missing fields must be 4xx, admin routes must
  * refuse without a token, error responses must not include code details).
- * No email, SMS, Google, Groq, R2 or postal-API calls leave the machine.
+ * No email, SMS, Google, Groq, R2, postal-API or Mappls calls leave the machine.
  * Set SMOKE_OUT=<file.json> to write every call's status for inspection.
  */
 import fs from 'fs';
@@ -61,6 +61,9 @@ describe('whole API smoke test', () => {
       if (String(url).includes('postalpincode.in')) {
         return new Response(JSON.stringify([{ Status: 'Success', PostOffice: [{ Name: 'Anna Nagar', District: 'Chennai', State: 'Tamil Nadu', Block: 'Chennai' }] }]), { status: 200 });
       }
+      if (String(url).includes('mappls.com')) {
+        return new Response(JSON.stringify({ responseCode: 200, results: [{ locality: 'Anna Nagar', city: 'Chennai', state: 'Tamil Nadu', pincode: '600040' }] }), { status: 200 });
+      }
       return realFetch(url, init);
     }) as any);
 
@@ -110,6 +113,8 @@ describe('whole API smoke test', () => {
     await call('cities', 'get', '/geo/cities?state=Tamil%20Nadu');
     await call('pincode', 'get', '/geo/pincode/600040');
     await call('pincode invalid', 'get', '/geo/pincode/12', { expect: [400, 404] });
+    await call('reverse geocode', 'get', '/geo/reverse?lat=13.0878&lng=80.2101');
+    await call('reverse geocode invalid', 'get', '/geo/reverse?lat=abc', { expect: [400] });
     await call('staff list without sign-in (must refuse)', 'get', '/employees', { expect: [401] });
     await call('staff recommend without sign-in (must refuse)', 'get', '/employees/recommend?district=Chennai', { expect: [401] });
     await call('staff list (admin)', 'get', '/employees', { token: admin });

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { IndiaStateModel, IndiaLocationModel } from '../../infrastructure/database/models/IndiaLocation.js';
+import { MapplsGeocoder, MapplsError } from '../../infrastructure/geo/MapplsGeocoder.js';
 
 export class GeoController {
   /**
@@ -174,6 +175,35 @@ export class GeoController {
     } catch (err) {
       console.error('[GeoController] lookupPincode error:', err);
       return res.status(500).json({ success: false, message: 'Server error while checking PIN code' });
+    }
+  }
+
+  /**
+   * GET /api/v1/geo/reverse?lat=13.08&lng=80.27
+   * GPS coordinates -> street, area, city, state and PIN code from Mappls (MapmyIndia).
+   * `data` is null when Mappls isn't set up (no MAPPLS_API_KEY), has no address there, or can't be
+   * reached; the website then uses its free providers.
+   */
+  static async reverseGeocode(req: Request, res: Response) {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    if (
+      req.query.lat === undefined || req.query.lng === undefined ||
+      !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180
+    ) {
+      return res.status(400).json({ success: false, message: 'Send lat and lng as numbers' });
+    }
+    if (!MapplsGeocoder.isConfigured()) {
+      return res.status(200).json({ success: true, source: 'none', data: null });
+    }
+    try {
+      const data = await MapplsGeocoder.reverse(lat, lng);
+      return res.status(200).json({ success: true, source: data ? 'mappls' : 'none', data });
+    } catch (err) {
+      // Never log the request URL: it carries the key
+      const reason = err instanceof MapplsError ? `status ${err.status}` : (err as Error)?.name || 'error';
+      console.warn(`[GeoController] Mappls reverse geocode failed (${reason})`);
+      return res.status(200).json({ success: true, source: 'none', data: null });
     }
   }
 }

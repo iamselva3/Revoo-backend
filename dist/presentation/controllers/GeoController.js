@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GeoController = void 0;
 const IndiaLocation_js_1 = require("../../infrastructure/database/models/IndiaLocation.js");
+const MapplsGeocoder_js_1 = require("../../infrastructure/geo/MapplsGeocoder.js");
 class GeoController {
     /**
      * GET /api/v1/geo/states
@@ -162,6 +163,33 @@ class GeoController {
         catch (err) {
             console.error('[GeoController] lookupPincode error:', err);
             return res.status(500).json({ success: false, message: 'Server error while checking PIN code' });
+        }
+    }
+    /**
+     * GET /api/v1/geo/reverse?lat=13.08&lng=80.27
+     * GPS coordinates -> street, area, city, state and PIN code from Mappls (MapmyIndia).
+     * `data` is null when Mappls isn't set up (no MAPPLS_API_KEY), has no address there, or can't be
+     * reached; the website then uses its free providers.
+     */
+    static async reverseGeocode(req, res) {
+        const lat = Number(req.query.lat);
+        const lng = Number(req.query.lng);
+        if (req.query.lat === undefined || req.query.lng === undefined ||
+            !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+            return res.status(400).json({ success: false, message: 'Send lat and lng as numbers' });
+        }
+        if (!MapplsGeocoder_js_1.MapplsGeocoder.isConfigured()) {
+            return res.status(200).json({ success: true, source: 'none', data: null });
+        }
+        try {
+            const data = await MapplsGeocoder_js_1.MapplsGeocoder.reverse(lat, lng);
+            return res.status(200).json({ success: true, source: data ? 'mappls' : 'none', data });
+        }
+        catch (err) {
+            // Never log the request URL: it carries the key
+            const reason = err instanceof MapplsGeocoder_js_1.MapplsError ? `status ${err.status}` : err?.name || 'error';
+            console.warn(`[GeoController] Mappls reverse geocode failed (${reason})`);
+            return res.status(200).json({ success: true, source: 'none', data: null });
         }
     }
 }
