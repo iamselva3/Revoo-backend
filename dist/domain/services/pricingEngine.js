@@ -16,7 +16,7 @@ const PRICING_OPTIONS = {
         displayNotOriginal: { key: 'display_not_original', pct: 65, label: 'Display not original' },
         // Taken off once: no warranty (or the question wasn't asked), no bill with the same IMEI, or
         // damage that voids the warranty.
-        noWarranty: { key: 'out_of_warranty_or_no_bill_penalty', pct: 0, label: 'No valid warranty' },
+        noWarranty: { key: 'out_of_warranty_or_no_bill_penalty', pct: 20, label: 'No valid warranty' },
     },
     screenDisplay: {
         MINOR_SPOTS: { key: 'minor_display_spots', pct: 12, label: 'Screen: 1–2 minor spots' },

@@ -354,7 +354,7 @@ describe('REVOO Backend Integration Tests', () => {
         expect(shown.status).toBe(200);
         const dp = shown.body.data.deductionPercentages;
         // The client's standard %
-        expect(dp.basicQuestions).toMatchObject({ phoneNotWorking: 87.9, touchscreenNotWorking: 60, displayNotOriginal: 65, noWarranty: 0 });
+        expect(dp.basicQuestions).toMatchObject({ phoneNotWorking: 87.9, touchscreenNotWorking: 60, displayNotOriginal: 65, noWarranty: 20 });
         expect(dp.screenDisplay).toMatchObject({ MINOR_SPOTS: 12, MAJOR_SPOTS_OR_LINES: 28 });
         expect(dp.touchGlass).toMatchObject({ MINOR_SCRATCHES: 6, HEAVY_SCRATCHES: 12, CRACKED_GLASS: 35 });
         expect(dp.backPanel).toMatchObject({ MINOR_SCRATCHES: 3, HEAVY_SCRATCHES: 8, BACK_PANEL_BROKEN: 15 });
