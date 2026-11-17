@@ -19,6 +19,31 @@ const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
 const DevicePriceResolver_js_1 = require("../../infrastructure/pricing/DevicePriceResolver.js");
 const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
 const adminAlerts_js_1 = require("../../infrastructure/notifications/adminAlerts.js");
+const BANNER_FIELDS = [
+    'tag', 'title', 'subtitle', 'badge', 'color1', 'color2', 'icon', 'imageUrl',
+    'isPopupModal', 'popupActionText', 'popupActionUrl', 'linkUrl', 'isActive', 'displayOrder',
+];
+/**
+ * The banner fields an admin sent, trimmed. An empty tag or title is removed rather than saved as
+ * "", so the app shows its own default pill instead of an empty one.
+ */
+const bannerInput = (body) => {
+    const set = {};
+    const unset = [];
+    for (const key of BANNER_FIELDS) {
+        if (body?.[key] === undefined)
+            continue;
+        const value = typeof body[key] === 'string' ? body[key].trim() : body[key];
+        if ((key === 'tag' || key === 'title') && (value === '' || value === null))
+            unset.push(key);
+        else
+            set[key] = value;
+    }
+    return { set, unset };
+};
+/** Text is optional, but a banner needs something to show: a photo, or a title for a text banner */
+const bannerHasContent = (b) => Boolean((typeof b.imageUrl === 'string' && b.imageUrl.trim()) || (typeof b.title === 'string' && b.title.trim()));
+const BANNER_EMPTY = 'Add a banner photo, or a title for a text banner.';
 class CatalogueController {
     // --- Public Customer Endpoints ---
     static async getActiveBrands(req, res, next) {
@@ -981,7 +1006,9 @@ class CatalogueController {
     static async getBanners(req, res, next) {
         try {
             let banners = await Banner_js_1.BannerModel.find({ isActive: true, isPopupModal: { $ne: true } }).sort({ displayOrder: 1, createdAt: -1 });
-            if (banners.length === 0) {
+            // Starter banners only for a brand-new database: when the admin has switched every banner
+            // off, none are shown (earlier this added three more copies on every visit)
+            if (banners.length === 0 && (await Banner_js_1.BannerModel.countDocuments({ isPopupModal: { $ne: true } })) === 0) {
                 const defaultBanners = [
                     {
                         tag: 'INSTANT VALUATION',
@@ -1039,7 +1066,10 @@ class CatalogueController {
     }
     static async adminCreateBanner(req, res, next) {
         try {
-            const banner = await Banner_js_1.BannerModel.create(req.body);
+            const { set } = bannerInput(req.body);
+            if (!bannerHasContent(set))
+                return next(new types_js_1.AppError(BANNER_EMPTY, 400));
+            const banner = await Banner_js_1.BannerModel.create(set);
             res.status(201).json({ success: true, message: 'Banner created successfully.', data: banner });
         }
         catch (err) {
@@ -1049,9 +1079,18 @@ class CatalogueController {
     static async adminUpdateBanner(req, res, next) {
         try {
             const { id } = req.params;
-            const banner = await Banner_js_1.BannerModel.findByIdAndUpdate(id, req.body, { new: true });
+            if (!mongoose_1.default.Types.ObjectId.isValid(id))
+                return next(new types_js_1.AppError('Banner not found.', 404));
+            const banner = await Banner_js_1.BannerModel.findById(id);
             if (!banner)
                 return next(new types_js_1.AppError('Banner not found.', 404));
+            const { set, unset } = bannerInput(req.body);
+            banner.set(set);
+            for (const key of unset)
+                banner.set(key, undefined);
+            if (!bannerHasContent(banner))
+                return next(new types_js_1.AppError(BANNER_EMPTY, 400));
+            await banner.save();
             res.status(200).json({ success: true, message: 'Banner updated successfully.', data: banner });
         }
         catch (err) {

@@ -36,9 +36,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BannerModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const BannerSchema = new mongoose_1.Schema({
-    tag: { type: String, required: true, trim: true },
-    title: { type: String, required: true, trim: true },
-    subtitle: { type: String, required: true, trim: true },
+    // Optional; the controller checks that every banner has a photo or a title
+    tag: { type: String, trim: true },
+    title: { type: String, trim: true },
+    subtitle: { type: String, trim: true, default: '' },
     badge: { type: String, default: 'Special Offer' },
     color1: { type: String, default: '#059669' },
     color2: { type: String, default: '#022C22' },
