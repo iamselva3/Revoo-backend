@@ -83,6 +83,7 @@ const toCustomerRequestView = (obj: any) => {
     customer: {
       fullName: obj.customerDetails?.fullName || obj.pickupAddress?.fullName || '',
       phone: obj.customerDetails?.phone || obj.pickupAddress?.phone || '',
+      alternatePhone: obj.customerDetails?.alternatePhone,
       email: obj.customerDetails?.email,
     },
     scheduledPickupDate:
@@ -230,6 +231,18 @@ export class BuybackRequestController {
         req.user?.phone ||
         'N/A';
 
+      // Optional second number for the pickup agent. Older apps don't send it, so it stays optional;
+      // when given it must be a real 10-digit mobile number, and the same number twice is kept once.
+      const alternateInput = rawBody.pickupAddress?.alternatePhone ?? rawBody.customer?.alternatePhone ?? rawBody.alternatePhone;
+      let alternatePhone: string | undefined;
+      if (alternateInput !== undefined && alternateInput !== null && String(alternateInput).trim() !== '') {
+        const normalized = normalizeIndianMobile(alternateInput);
+        if (!normalized) {
+          return next(new AppError('Please enter a valid 10-digit alternative phone number, or leave it empty.', 400));
+        }
+        if (normalized !== customerPhone) alternatePhone = normalized;
+      }
+
       // If user profile is missing a phone number, update UserModel permanently
       if (userId && customerPhone && customerPhone !== 'N/A') {
         const userDoc = await UserModel.findById(userId);
@@ -252,6 +265,7 @@ export class BuybackRequestController {
         customerDetails: {
           fullName: customerFullName,
           phone: customerPhone,
+          alternatePhone,
           email: req.user?.email,
         },
         deviceDetails: {
@@ -480,6 +494,7 @@ export class BuybackRequestController {
           { requestNumber: { $regex: cleanSearch, $options: 'i' } },
           { 'customerDetails.fullName': { $regex: search, $options: 'i' } },
           { 'customerDetails.phone': { $regex: search, $options: 'i' } },
+          { 'customerDetails.alternatePhone': { $regex: search, $options: 'i' } },
           { 'deviceDetails.modelName': { $regex: search, $options: 'i' } },
         ];
       }

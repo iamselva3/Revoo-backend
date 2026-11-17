@@ -42,6 +42,7 @@ const BuybackRequestSchema = new mongoose_1.Schema({
     customerDetails: {
         fullName: { type: String, required: true },
         phone: { type: String, required: true },
+        alternatePhone: { type: String, trim: true },
         email: { type: String },
     },
     deviceDetails: {

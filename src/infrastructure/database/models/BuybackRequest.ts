@@ -7,6 +7,8 @@ export interface IBuybackRequestDocument extends Document {
   customerDetails: {
     fullName: string;
     phone: string;
+    /** A second number to call when the main one doesn't answer (optional; asked on the website) */
+    alternatePhone?: string;
     email?: string;
   };
   deviceDetails: {
@@ -95,6 +97,7 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
     customerDetails: {
       fullName: { type: String, required: true },
       phone: { type: String, required: true },
+      alternatePhone: { type: String, trim: true },
       email: { type: String },
     },
     deviceDetails: {

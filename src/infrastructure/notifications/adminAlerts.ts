@@ -93,6 +93,7 @@ export const newPickupRequestAlert = (r: any): AdminAlert => {
       { label: 'Request number', value: r.requestNumber },
       { label: 'Full name', value: r.customerDetails?.fullName },
       phoneField('Phone', r.customerDetails?.phone),
+      phoneField('Alternative phone', r.customerDetails?.alternatePhone),
       emailField('Email', r.customerDetails?.email),
       { label: 'Device', value: [device, storage].filter(Boolean).join(' · ') },
       { label: 'Quoted price', value: amount },

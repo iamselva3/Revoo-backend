@@ -527,6 +527,7 @@ describe('REVOO Backend Integration Tests', () => {
       pickupAddress: {
         fullName: 'Selva Ganesh',
         phone: '+91 98450 12345',
+        alternatePhone: '099620 11122',
         addressLine1: 'No. 42, North Mada Street',
         addressLine2: 'Anna Nagar',
         city: 'Chennai',
@@ -559,6 +560,7 @@ describe('REVOO Backend Integration Tests', () => {
       expect(alert.fields).toEqual(expect.arrayContaining([
         { label: 'Full name', value: 'Selva Ganesh' },
         { label: 'Phone', value: '+91 98450 12345', href: 'tel:+919845012345' },
+        { label: 'Alternative phone', value: '+91 99620 11122', href: 'tel:+919962011122' },
         { label: 'Payout', value: 'UPI · selva@okhdfcbank' },
       ]));
       email.mockRestore();
@@ -566,6 +568,7 @@ describe('REVOO Backend Integration Tests', () => {
       expect(saved.pickupAddress.area).toBe('Anna Nagar');
       expect(saved.pickupAddress.pincode).toBe('600040');
       expect(saved.customerDetails.phone).toBe('9845012345');
+      expect(saved.customerDetails.alternatePhone).toBe('9962011122');
       expect(saved.payoutDetails).toMatchObject({ method: 'UPI', upiId: 'selva@okhdfcbank' });
       expect(saved.deviceDetails.storageCapacity).toBe('256GB');
       expect(saved.declaredCondition.touchGlassCondition).toBe('MINOR_SCRATCHES');
@@ -598,9 +601,31 @@ describe('REVOO Backend Integration Tests', () => {
       expect(bank.payoutDetails.accountNumber).toBe('•••• 6789');
       expect(bank.payoutDetails.ifscCode).toBe('HDFC0001234');
       expect(upi.customer.phone).toBe('9845012345');
+      expect(upi.customer.alternatePhone).toBe('9962011122');
       expect(upi.pickupAddress.area).toBe('Anna Nagar');
       expect(upi.device.modelName).toBe('iPhone 15 Pro');
       expect(upi.device.slug).toBe('iphone-15-pro');
+    });
+
+    test('alternative phone: optional, must be a real mobile number, kept once when it is the same number', async () => {
+      const send = (alternatePhone: any) =>
+        request(app)
+          .post('/api/v1/requests')
+          .set('Authorization', `Bearer ${tokenA}`)
+          .send(webBooking({ pickupAddress: { ...webBooking().pickupAddress, alternatePhone } }));
+
+      const bad = await send('12345');
+      expect(bad.status).toBe(400);
+      expect(bad.body.message).toBe('Please enter a valid 10-digit alternative phone number, or leave it empty.');
+
+      const same = await send('98450 12345');
+      expect(same.status).toBe(201);
+      expect(same.body.data.customerDetails.alternatePhone).toBeUndefined();
+
+      // Older apps don't send it at all
+      const none = await send(undefined);
+      expect(none.status).toBe(201);
+      expect(none.body.data.customerDetails.alternatePhone).toBeUndefined();
     });
 
     test('GET /api/v1/requests/my/:requestNumber finds a request by its number', async () => {

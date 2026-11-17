@@ -8,7 +8,7 @@ import { newBuyOrderAlert, newEnquiryAlert, newPickupRequestAlert } from './admi
 const booking = {
   _id: '6650c0ffee0000000000abcd',
   requestNumber: 'GENIE-2026-1042',
-  customerDetails: { fullName: 'Selva Ganesh', phone: '9845012345', email: 'selva@example.com' },
+  customerDetails: { fullName: 'Selva Ganesh', phone: '9845012345', alternatePhone: '9962011122', email: 'selva@example.com' },
   deviceDetails: { brandName: 'Apple', modelName: 'iPhone 15 Pro', storageCapacity: '256GB' },
   indicativeEstimate: { estimatedAmount: 61250 },
   declaredCondition: { summary: [{ title: 'Screen', items: ['No spot', 'Minor scratches'] }, { title: 'Accessories', items: ['Charger'] }] },
@@ -28,6 +28,7 @@ describe('admin alert emails', () => {
     expect(a.subject).toBe('New pickup request GENIE-2026-1042: Apple iPhone 15 Pro (256GB) · ₹61,250');
     expect(a.replyTo).toBe('selva@example.com');
     expect(field(a, 'Phone')).toEqual({ label: 'Phone', value: '+91 98450 12345', href: 'tel:+919845012345' });
+    expect(field(a, 'Alternative phone')).toEqual({ label: 'Alternative phone', value: '+91 99620 11122', href: 'tel:+919962011122' });
     expect(field(a, 'Email').href).toBe('mailto:selva@example.com');
     expect(field(a, 'Condition').value).toBe('Screen: No spot, Minor scratches\nAccessories: Charger');
     expect(field(a, 'Pickup address').value).toBe('No. 42, North Mada Street\nAnna Nagar\nChennai, Tamil Nadu - 600040');
@@ -50,6 +51,7 @@ describe('admin alert emails', () => {
     });
     expect(a.subject).toContain('Realme 12 Pro Plus (8GB / 256GB)');
     expect(field(a, 'Condition').value).toBeUndefined();
+    expect(adminAlertText(newPickupRequestAlert({ ...booking, customerDetails: { fullName: 'A', phone: '9845012345' } }))).not.toContain('Alternative phone');
     expect(field(a, 'Payout').value).toBe('UPI · selva@okhdfcbank');
     expect(adminAlertText(a)).not.toContain('Condition:');
     expect(adminAlertText(a)).not.toContain('Photos:');
