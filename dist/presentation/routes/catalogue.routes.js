@@ -21,6 +21,7 @@ router.post('/orders', CatalogueController_js_1.CatalogueController.createOrderI
 router.get('/admin/popup', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.getAppPopup);
 // Admin photo upload -> Cloudflare R2 (returns the public URL to save on the record)
 router.post('/admin/media', auth_middleware_js_1.authenticateAdmin, StorageService_js_1.upload.single('image'), MediaController_js_1.MediaController.uploadAdminImage);
+router.get('/admin/media/source', auth_middleware_js_1.authenticateAdmin, MediaController_js_1.MediaController.fetchAdminImage);
 router.post('/admin/popup', auth_middleware_js_1.authenticateAdmin, (0, StorageService_js_1.persistBodyImages)('popups'), CatalogueController_js_1.CatalogueController.adminSavePopup);
 router.get('/admin/banners', auth_middleware_js_1.authenticateAdmin, CatalogueController_js_1.CatalogueController.adminListBanners);
 router.post('/admin/banners', auth_middleware_js_1.authenticateAdmin, (0, StorageService_js_1.persistBodyImages)('banners'), CatalogueController_js_1.CatalogueController.adminCreateBanner);

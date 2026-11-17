@@ -45,6 +45,11 @@ const BannerSchema = new mongoose_1.Schema({
     color2: { type: String, default: '#022C22' },
     icon: { type: String, default: 'flash_on' },
     imageUrl: { type: String, trim: true },
+    sourceImageUrl: { type: String, trim: true },
+    imageAdjust: {
+        type: new mongoose_1.Schema({ zoom: Number, x: Number, y: Number, background: String }, { _id: false }),
+        default: undefined,
+    },
     isPopupModal: { type: Boolean, default: false },
     popupActionText: { type: String, default: 'BUY NOW — LIVE SALE' },
     popupActionUrl: { type: String, default: '/buy' },

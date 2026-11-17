@@ -22,6 +22,7 @@ router.post('/orders', CatalogueController.createOrderInvoice);
 router.get('/admin/popup', authenticateAdmin, CatalogueController.getAppPopup);
 // Admin photo upload -> Cloudflare R2 (returns the public URL to save on the record)
 router.post('/admin/media', authenticateAdmin, upload.single('image'), MediaController.uploadAdminImage);
+router.get('/admin/media/source', authenticateAdmin, MediaController.fetchAdminImage);
 router.post('/admin/popup', authenticateAdmin, persistBodyImages('popups'), CatalogueController.adminSavePopup);
 router.get('/admin/banners', authenticateAdmin, CatalogueController.adminListBanners);
 router.post('/admin/banners', authenticateAdmin, persistBodyImages('banners'), CatalogueController.adminCreateBanner);

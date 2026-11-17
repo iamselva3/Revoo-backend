@@ -17,9 +17,25 @@ import { NotificationService } from '../../infrastructure/notifications/Notifica
 import { newBuyOrderAlert } from '../../infrastructure/notifications/adminAlerts.js';
 
 const BANNER_FIELDS = [
-  'tag', 'title', 'subtitle', 'badge', 'color1', 'color2', 'icon', 'imageUrl',
+  'tag', 'title', 'subtitle', 'badge', 'color1', 'color2', 'icon', 'imageUrl', 'sourceImageUrl', 'imageAdjust',
   'isPopupModal', 'popupActionText', 'popupActionUrl', 'linkUrl', 'isActive', 'displayOrder',
 ] as const;
+
+const clampNumber = (v: unknown, min: number, max: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : null;
+};
+
+/** The admin's "Adjust" settings, checked; null when missing or unusable (then removed). */
+const cleanImageAdjust = (v: any) => {
+  if (!v || typeof v !== 'object') return null;
+  const zoom = clampNumber(v.zoom, 0.1, 10);
+  const x = clampNumber(v.x, -5, 5);
+  const y = clampNumber(v.y, -5, 5);
+  if (zoom === null || x === null || y === null) return null;
+  const background = typeof v.background === 'string' && /^(blur|#[0-9a-f]{3,8})$/i.test(v.background.trim()) ? v.background.trim() : 'blur';
+  return { zoom, x, y, background };
+};
 
 /**
  * The banner fields an admin sent, trimmed. An empty tag or title is removed rather than saved as
@@ -30,6 +46,12 @@ const bannerInput = (body: any) => {
   const unset: string[] = [];
   for (const key of BANNER_FIELDS) {
     if (body?.[key] === undefined) continue;
+    if (key === 'imageAdjust') {
+      const adjust = cleanImageAdjust(body[key]);
+      if (adjust) set[key] = adjust;
+      else unset.push(key);
+      continue;
+    }
     const value = typeof body[key] === 'string' ? body[key].trim() : body[key];
     if ((key === 'tag' || key === 'title') && (value === '' || value === null)) unset.push(key);
     else set[key] = value;

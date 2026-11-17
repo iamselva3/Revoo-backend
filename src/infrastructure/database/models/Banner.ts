@@ -9,7 +9,13 @@ export interface IBannerDocument extends Document {
   color1: string;
   color2: string;
   icon: string;
+  /** The photo customers see (already framed with the admin's "Adjust") */
   imageUrl?: string;
+  /** The photo as uploaded, before "Adjust"; kept so the framing can be changed again */
+  sourceImageUrl?: string;
+  /** How the admin framed sourceImageUrl: zoom (1 = fills the banner) and the photo centre's offset
+   * as a share of the banner's width / height; background = 'blur' or a #colour for empty space */
+  imageAdjust?: { zoom: number; x: number; y: number; background?: string };
   isPopupModal?: boolean;
   popupActionText?: string;
   popupActionUrl?: string;
@@ -31,6 +37,11 @@ const BannerSchema = new Schema<IBannerDocument>(
     color2: { type: String, default: '#022C22' },
     icon: { type: String, default: 'flash_on' },
     imageUrl: { type: String, trim: true },
+    sourceImageUrl: { type: String, trim: true },
+    imageAdjust: {
+      type: new Schema({ zoom: Number, x: Number, y: Number, background: String }, { _id: false }),
+      default: undefined,
+    },
     isPopupModal: { type: Boolean, default: false },
     popupActionText: { type: String, default: 'BUY NOW — LIVE SALE' },
     popupActionUrl: { type: String, default: '/buy' },
