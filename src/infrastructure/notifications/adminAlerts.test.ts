@@ -3,7 +3,7 @@
  * that sending goes to genietnsupport@gmail.com, never throws, and never runs in tests by accident.
  */
 import { NotificationService, adminAlertHtml, adminAlertText } from './NotificationService.js';
-import { newBuyOrderAlert, newEnquiryAlert, newPickupRequestAlert } from './adminAlerts.js';
+import { doorstepCheckAlert, newBuyOrderAlert, newEnquiryAlert, newPickupRequestAlert } from './adminAlerts.js';
 
 const booking = {
   _id: '6650c0ffee0000000000abcd',
@@ -119,6 +119,48 @@ describe('admin alert emails', () => {
       const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
       await expect(NotificationService.emailAdmins(newEnquiryAlert({ ticketNumber: 'T', name: 'n', email: 'e@x.co', subject: 's', message: 'm' }))).resolves.toBe(false);
       expect(log).toHaveBeenCalled();
+    });
+  });
+
+  describe('doorstep check by a pickup partner', () => {
+    const check = {
+      requestNumber: 'GENIE-2026-1042',
+      partnerName: 'Karthik Raja',
+      partnerCode: 'GP-101',
+      device: { brandName: 'Apple', modelName: 'iPhone 15 Pro', checkedStorage: '256GB' },
+      quotedAmount: 41440,
+      finalAmount: 10700,
+      difference: -30740,
+      changes: [
+        { component: 'Touch glass: cracked or broken', difference: -19600 },
+        { component: 'Touch glass: minor scratches', difference: 3360 },
+      ],
+      outcome: 'AGREED',
+      imei: '352098765432109',
+      createdAt: new Date('2026-11-18T11:43:00Z'),
+    };
+
+    test('a lower price says who lowered it, by how much and why', () => {
+      const alert = doorstepCheckAlert(check, booking);
+      expect(alert.subject).toBe('Doorstep check GENIE-2026-1042: price reduced by ₹30,740 by Karthik Raja');
+      expect(alert.fields).toEqual(
+        expect.arrayContaining([
+          { label: 'Partner', value: 'Karthik Raja · GP-101' },
+          { label: 'Quoted price', value: '₹41,440' },
+          { label: 'Final price', value: '₹10,700' },
+          { label: 'What changed', value: 'Touch glass: cracked or broken: −₹19,600\nTouch glass: minor scratches: +₹3,360' },
+          { label: 'Result', value: 'Customer agreed to the price' },
+          { label: 'Checked on', value: '18 Nov 2026, 5:13 pm' },
+        ])
+      );
+      expect(alert.link?.url).toContain('/requests/6650c0ffee0000000000abcd');
+    });
+
+    test('a pickup that did not go ahead gives the reason', () => {
+      const alert = doorstepCheckAlert({ ...check, difference: 0, finalAmount: 41440, changes: [], outcome: 'NOT_BUYABLE', notBuyableReason: 'Customer not available' }, booking);
+      expect(alert.subject).toContain('price unchanged');
+      expect(alert.intro).toContain('did not go ahead');
+      expect(alert.fields).toEqual(expect.arrayContaining([{ label: 'Result', value: 'Device could not be bought: Customer not available' }]));
     });
   });
 });

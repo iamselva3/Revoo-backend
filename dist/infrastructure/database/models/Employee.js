@@ -62,6 +62,11 @@ const EmployeeSchema = new mongoose_1.Schema({
     },
     completedPickups: { type: Number, default: 0 },
     rating: { type: Number, default: 4.8 },
+    partnerAccessEnabled: { type: Boolean, default: false },
+    partnerPinHash: { type: String, select: false },
+    partnerFailedAttempts: { type: Number, default: 0, select: false },
+    partnerLockedUntil: { type: Date, select: false },
+    partnerLastLoginAt: { type: Date },
 }, { timestamps: true });
 EmployeeSchema.index({ district: 1, status: 1 });
 EmployeeSchema.index({ assignedPincodes: 1 });

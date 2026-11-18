@@ -14,6 +14,12 @@ export interface IEmployeeDocument extends Document {
   vehicleType: 'BIKE' | 'EV_SCOOTER' | 'VAN';
   completedPickups: number;
   rating: number;
+  /** Partner app (genietn.in/partner): sign in with the phone number and a PIN the admin sets. */
+  partnerAccessEnabled?: boolean;
+  partnerPinHash?: string;
+  partnerFailedAttempts?: number;
+  partnerLockedUntil?: Date;
+  partnerLastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +52,11 @@ const EmployeeSchema = new Schema<IEmployeeDocument>(
     },
     completedPickups: { type: Number, default: 0 },
     rating: { type: Number, default: 4.8 },
+    partnerAccessEnabled: { type: Boolean, default: false },
+    partnerPinHash: { type: String, select: false },
+    partnerFailedAttempts: { type: Number, default: 0, select: false },
+    partnerLockedUntil: { type: Date, select: false },
+    partnerLastLoginAt: { type: Date },
   },
   { timestamps: true }
 );

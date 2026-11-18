@@ -148,3 +148,45 @@ export const newEnquiryAlert = (e: any): AdminAlert => ({
   ],
   link: { label: 'Open enquiries in admin', url: `${config.adminAlerts.adminUrl}/enquiries` },
 });
+
+const OUTCOME_LABELS: Record<string, string> = {
+  AGREED: 'Customer agreed to the price',
+  DECLINED: 'Customer declined the price',
+  NOT_BUYABLE: 'Device could not be bought',
+};
+
+/** A pickup partner's check at the door changed the price, or the pickup didn't go ahead. */
+export const doorstepCheckAlert = (check: any, r: any): AdminAlert => {
+  const device = deviceName(check.device?.brandName, check.device?.modelName);
+  const diff = Number(check.difference) || 0;
+  const change = diff < 0 ? `reduced by ${rupees(-diff)}` : diff > 0 ? `raised by ${rupees(diff)}` : 'unchanged';
+  const changes = Array.isArray(check.changes)
+    ? check.changes
+        .map((c: any) => `${c.component}: ${c.difference < 0 ? '−' : '+'}${rupees(Math.abs(c.difference))}`)
+        .join('\n')
+    : '';
+  return {
+    subject: `Doorstep check ${check.requestNumber}: price ${change} by ${check.partnerName}`,
+    intro:
+      diff < 0
+        ? 'A pickup partner lowered the price at the door. Details below.'
+        : check.outcome !== 'AGREED'
+          ? 'A pickup partner checked a device but the pickup did not go ahead. Details below.'
+          : 'A pickup partner changed the price at the door. Details below.',
+    fields: [
+      { label: 'Request number', value: check.requestNumber },
+      { label: 'Partner', value: [check.partnerName, check.partnerCode].filter(Boolean).join(' · ') },
+      { label: 'Customer', value: r?.customerDetails?.fullName },
+      { label: 'Device', value: [device, check.device?.checkedStorage].filter(Boolean).join(' · ') },
+      { label: 'Quoted price', value: rupees(check.quotedAmount) },
+      { label: 'Final price', value: rupees(check.finalAmount) },
+      { label: 'What changed', value: changes || undefined },
+      { label: 'Result', value: [OUTCOME_LABELS[check.outcome] || check.outcome, check.notBuyableReason].filter(Boolean).join(': ') },
+      { label: 'IMEI / serial', value: check.imei },
+      { label: 'Partner notes', value: check.notes },
+      { label: 'Photos', value: Array.isArray(check.photoUrls) && check.photoUrls.length ? `${check.photoUrls.length} taken` : undefined },
+      { label: 'Checked on', value: submittedAt(check.createdAt ? new Date(check.createdAt) : undefined) },
+    ],
+    link: r?._id ? { label: 'Open request in admin', url: `${config.adminAlerts.adminUrl}/requests/${r._id}` } : undefined,
+  };
+};

@@ -19,7 +19,22 @@ export interface AdminTokenPayload {
   type: 'ADMIN';
 }
 
+/** Pickup partner signed in to the partner app (genietn.in/partner). */
+export interface PartnerTokenPayload {
+  employeeId: string;
+  fullName: string;
+  employeeCode: string;
+  type: 'PARTNER';
+}
+
+/** A partner stays signed in for one working day, then signs in again with their PIN. */
+export const PARTNER_SESSION_HOURS = 12;
+
 export class TokenService {
+  public static generatePartnerToken(payload: PartnerTokenPayload): string {
+    return jwt.sign(payload, config.jwt.accessSecret, { expiresIn: `${PARTNER_SESSION_HOURS}h` as any });
+  }
+
   /**
    * @param sid Session id embedded in the refresh token, identifying the device/browser session
    *            it belongs to (see CustomerSessionService).

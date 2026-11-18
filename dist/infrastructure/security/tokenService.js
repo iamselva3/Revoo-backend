@@ -3,12 +3,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TokenService = void 0;
+exports.TokenService = exports.PARTNER_SESSION_HOURS = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const index_js_1 = require("../../config/index.js");
+/** A partner stays signed in for one working day, then signs in again with their PIN. */
+exports.PARTNER_SESSION_HOURS = 12;
 class TokenService {
+    static generatePartnerToken(payload) {
+        return jsonwebtoken_1.default.sign(payload, index_js_1.config.jwt.accessSecret, { expiresIn: `${exports.PARTNER_SESSION_HOURS}h` });
+    }
     /**
      * @param sid Session id embedded in the refresh token, identifying the device/browser session
      *            it belongs to (see CustomerSessionService).

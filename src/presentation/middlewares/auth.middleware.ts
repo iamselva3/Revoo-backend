@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError, AdminRole } from '../../shared/types.js';
-import { TokenService, CustomerTokenPayload, AdminTokenPayload } from '../../infrastructure/security/tokenService.js';
+import { TokenService, CustomerTokenPayload, AdminTokenPayload, PartnerTokenPayload } from '../../infrastructure/security/tokenService.js';
+import { EmployeeModel } from '../../infrastructure/database/models/Employee.js';
 import { UserModel } from '../../infrastructure/database/models/User.js';
 import { AdminUserModel } from '../../infrastructure/database/models/AdminUser.js';
 
@@ -102,3 +103,32 @@ export const requireAdminRoles = (...roles: AdminRole[]) => {
   };
 };
 
+
+export interface AuthenticatedPartnerRequest extends Request {
+  partner?: PartnerTokenPayload & { id: string; phone: string };
+}
+
+/** Pickup partner app: a PARTNER token of an employee whose partner access is still switched on. */
+export const authenticatePartner = async (req: AuthenticatedPartnerRequest, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next(new AppError('Please sign in to the partner app.', 401));
+    }
+    const decoded = TokenService.verifyAccessToken<PartnerTokenPayload>(authHeader.split(' ')[1]);
+    if (decoded.type !== 'PARTNER') {
+      return next(new AppError('Please sign in to the partner app.', 403));
+    }
+    const employee = await EmployeeModel.findById(decoded.employeeId);
+    if (!employee || !employee.partnerAccessEnabled || employee.status === 'INACTIVE') {
+      return next(new AppError('Your partner access is switched off. Please contact the Genie team.', 401));
+    }
+    req.partner = { ...decoded, id: employee._id.toString(), fullName: employee.fullName, phone: employee.phone };
+    next();
+  } catch (err: any) {
+    if (err.name === 'TokenExpiredError') {
+      return next(new AppError('Your session ended. Please sign in again.', 401));
+    }
+    return next(new AppError('Please sign in to the partner app.', 401));
+  }
+};

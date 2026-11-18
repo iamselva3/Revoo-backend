@@ -82,6 +82,16 @@ export interface IBuybackRequestDocument extends Document {
     scheduledDate?: Date;
     timeSlot?: string;
   };
+  /** Latest check by a pickup partner at the door (partner app); every check is in DoorstepCheck. */
+  doorstepCheck?: {
+    checkId: Types.ObjectId;
+    partnerName: string;
+    quotedAmount: number;
+    finalAmount: number;
+    difference: number;
+    outcome: 'AGREED' | 'DECLINED' | 'NOT_BUYABLE';
+    checkedAt: Date;
+  };
   activeOfferId?: Types.ObjectId;
   inspectionId?: Types.ObjectId;
   paymentId?: Types.ObjectId;
@@ -217,6 +227,19 @@ const BuybackRequestSchema = new Schema<IBuybackRequestDocument>(
       staffName: { type: String },
       scheduledDate: { type: Date },
       timeSlot: { type: String },
+    },
+    doorstepCheck: {
+      type: {
+        _id: false,
+        checkId: { type: Schema.Types.ObjectId, ref: 'DoorstepCheck' },
+        partnerName: { type: String },
+        quotedAmount: { type: Number },
+        finalAmount: { type: Number },
+        difference: { type: Number },
+        outcome: { type: String, enum: ['AGREED', 'DECLINED', 'NOT_BUYABLE'] },
+        checkedAt: { type: Date },
+      },
+      default: undefined,
     },
     activeOfferId: { type: Schema.Types.ObjectId, ref: 'FinalOffer' },
     inspectionId: { type: Schema.Types.ObjectId, ref: 'Inspection' },

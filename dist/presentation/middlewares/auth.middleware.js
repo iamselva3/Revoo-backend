@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireAdminRoles = exports.authenticateAdmin = exports.authenticateCustomer = void 0;
+exports.authenticatePartner = exports.requireAdminRoles = exports.authenticateAdmin = exports.authenticateCustomer = void 0;
 const types_js_1 = require("../../shared/types.js");
 const tokenService_js_1 = require("../../infrastructure/security/tokenService.js");
+const Employee_js_1 = require("../../infrastructure/database/models/Employee.js");
 const User_js_1 = require("../../infrastructure/database/models/User.js");
 const AdminUser_js_1 = require("../../infrastructure/database/models/AdminUser.js");
 const authenticateCustomer = async (req, res, next) => {
@@ -78,4 +79,30 @@ const requireAdminRoles = (...roles) => {
     };
 };
 exports.requireAdminRoles = requireAdminRoles;
+/** Pickup partner app: a PARTNER token of an employee whose partner access is still switched on. */
+const authenticatePartner = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next(new types_js_1.AppError('Please sign in to the partner app.', 401));
+        }
+        const decoded = tokenService_js_1.TokenService.verifyAccessToken(authHeader.split(' ')[1]);
+        if (decoded.type !== 'PARTNER') {
+            return next(new types_js_1.AppError('Please sign in to the partner app.', 403));
+        }
+        const employee = await Employee_js_1.EmployeeModel.findById(decoded.employeeId);
+        if (!employee || !employee.partnerAccessEnabled || employee.status === 'INACTIVE') {
+            return next(new types_js_1.AppError('Your partner access is switched off. Please contact the Genie team.', 401));
+        }
+        req.partner = { ...decoded, id: employee._id.toString(), fullName: employee.fullName, phone: employee.phone };
+        next();
+    }
+    catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            return next(new types_js_1.AppError('Your session ended. Please sign in again.', 401));
+        }
+        return next(new types_js_1.AppError('Please sign in to the partner app.', 401));
+    }
+};
+exports.authenticatePartner = authenticatePartner;
 //# sourceMappingURL=auth.middleware.js.map
