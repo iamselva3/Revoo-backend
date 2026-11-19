@@ -19,8 +19,8 @@ describe('PricingEngine - Official Acceptance Tests', () => {
     const result = calculatePrice(phone, input);
 
     // Client's standard: touch 60% + legacy minor scratches 4% + battery 15% + camera glass 9% + damage voids
-    // the warranty 20% -> below the scrap floor
-    expect(result.totalDeductions).toBe(98172);
+    // the warranty 25% -> below the scrap floor
+    expect(result.totalDeductions).toBe(102717);
     expect(result.finalPrice).toBe(2000);
   });
 
@@ -81,8 +81,8 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
-    // Network / SIM 50% + legacy minor dent 5% + no bill ("No valid warranty" 20%)
-    expect(result.finalPrice).toBe(11250);
+    // Network / SIM 50% + legacy minor dent 5% + no bill ("No valid warranty" 25%)
+    expect(result.finalPrice).toBe(9000);
     expect(result.deductions.find((d) => d.key === 'network_or_sim_tray_issue')?.amount).toBe(22500);
   });
 
@@ -103,8 +103,8 @@ describe('PricingEngine - Official Acceptance Tests', () => {
 
     const result = calculatePrice(phone, input);
 
-    // 45000 - 2250 (legacy minor dent 5%) - 9000 (no bill: "No valid warranty" 20%)
-    expect(result.finalPrice).toBe(33750);
+    // 45000 - 2250 (legacy minor dent 5%) - 11250 (no bill: "No valid warranty" 25%)
+    expect(result.finalPrice).toBe(31500);
   });
 
   test('Test 6: pass an unknown key, e.g. screenKey: abc. Expected: throws Unknown condition key', () => {

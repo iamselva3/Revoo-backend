@@ -16,7 +16,7 @@ const PRICING_OPTIONS = {
         displayNotOriginal: { key: 'display_not_original', pct: 65, label: 'Display not original' },
         // Taken off once: no warranty (or the question wasn't asked), no bill with the same IMEI, or
         // damage that voids the warranty.
-        noWarranty: { key: 'out_of_warranty_or_no_bill_penalty', pct: 20, label: 'No valid warranty' },
+        noWarranty: { key: 'out_of_warranty_or_no_bill_penalty', pct: 25, label: 'No valid warranty' },
     },
     screenDisplay: {
         MINOR_SPOTS: { key: 'minor_display_spots', pct: 12, label: 'Screen: 1–2 minor spots' },
@@ -90,7 +90,7 @@ const ACC_BONUS = { original_charger: 0, box_same_imei: 0, bill_same_imei: 0 };
 // hasn't set uses the client's standard below.
 const DEVICE_AGE_BANDS = ['BELOW_3_MONTHS', '3_TO_6_MONTHS', '6_TO_11_MONTHS', 'ABOVE_11_MONTHS'];
 const DEVICE_AGE_MAX_PCT = 90;
-const DEFAULT_DEVICE_AGE_PCT = { BELOW_3_MONTHS: 0, '3_TO_6_MONTHS': 8, '6_TO_11_MONTHS': 12, ABOVE_11_MONTHS: 20 };
+const DEFAULT_DEVICE_AGE_PCT = { BELOW_3_MONTHS: 0, '3_TO_6_MONTHS': 8, '6_TO_11_MONTHS': 12, ABOVE_11_MONTHS: 25 };
 // "Is the phone's display original?" answered No: default % taken off (the admin sets it per model).
 const DEFAULT_DISPLAY_NOT_ORIGINAL_PCT = PRICING_OPTIONS.basicQuestions.displayNotOriginal.pct;
 // Damage that voids a manufacturer warranty: the phone is then priced as out of warranty.
