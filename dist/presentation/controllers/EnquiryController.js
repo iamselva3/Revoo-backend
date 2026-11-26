@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EnquiryController = void 0;
 const CustomerEnquiry_js_1 = require("../../infrastructure/database/models/CustomerEnquiry.js");
+const sequence_js_1 = require("../../infrastructure/database/sequence.js");
 const types_js_1 = require("../../shared/types.js");
 const NotificationService_js_1 = require("../../infrastructure/notifications/NotificationService.js");
 const adminAlerts_js_1 = require("../../infrastructure/notifications/adminAlerts.js");
@@ -9,16 +10,23 @@ class EnquiryController {
     static async submitEnquiry(req, res, next) {
         try {
             const { name, email, phone, subject, message } = req.body;
-            const count = await CustomerEnquiry_js_1.CustomerEnquiryModel.countDocuments();
-            const ticketNumber = `TKT-${new Date().getFullYear()}-${(100 + count + 1).toString()}`;
-            const enquiry = await CustomerEnquiry_js_1.CustomerEnquiryModel.create({
-                ticketNumber,
-                name,
-                email: email.toLowerCase().trim(),
-                phone,
-                subject,
-                message,
-                status: types_js_1.EnquiryStatus.OPEN,
+            const year = new Date().getFullYear();
+            const { doc: enquiry, sequenceNumber: ticketNumber } = await (0, sequence_js_1.createWithUniqueSequence)({
+                model: CustomerEnquiry_js_1.CustomerEnquiryModel,
+                field: 'ticketNumber',
+                counterKey: `enquiry-ticket-${year}`,
+                formatNumber: (seq) => `TKT-${year}-${seq}`,
+                extractPattern: new RegExp(`^TKT-${year}-(\\d+)$`, 'i'),
+                defaultFloor: 100,
+                buildDoc: (generatedNumber) => ({
+                    ticketNumber: generatedNumber,
+                    name,
+                    email: email.toLowerCase().trim(),
+                    phone,
+                    subject,
+                    message,
+                    status: types_js_1.EnquiryStatus.OPEN,
+                }),
             });
             // Notify admin team by email/in-app alert
             await NotificationService_js_1.NotificationService.notify({

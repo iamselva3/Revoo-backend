@@ -21,6 +21,7 @@ import { AuthenticatedCustomerRequest, AuthenticatedAdminRequest } from '../midd
 import { StorageService } from '../../infrastructure/storage/StorageService.js';
 import { DeviceImageModel } from '../../infrastructure/database/models/DeviceImage.js';
 import { UserModel } from '../../infrastructure/database/models/User.js';
+import { createWithUniqueSequence } from '../../infrastructure/database/sequence.js';
 import { config } from '../../config/index.js';
 
 const PAYOUT_METHODS = ['UPI', 'BANK_TRANSFER', 'INSTANT_CASH'] as const;
@@ -243,63 +244,72 @@ export class BuybackRequestController {
         if (normalized !== customerPhone) alternatePhone = normalized;
       }
 
-      // If user profile is missing a phone number, update UserModel permanently
+      // If user profile is missing a phone number, update UserModel atomically
       if (userId && customerPhone && customerPhone !== 'N/A') {
-        const userDoc = await UserModel.findById(userId);
+        const profileUpdate: Record<string, string> = { phone: customerPhone };
+        const userDoc = await UserModel.findById(userId).select('phone fullName').lean();
         if (userDoc && !userDoc.phone) {
-          userDoc.phone = customerPhone;
           if (customerFullName && customerFullName !== 'Valued Customer' && !userDoc.fullName) {
-            userDoc.fullName = customerFullName;
+            profileUpdate.fullName = customerFullName;
           }
-          await userDoc.save();
+          await UserModel.updateOne(
+            { _id: userId, $or: [{ phone: { $exists: false } }, { phone: null }, { phone: '' }] },
+            { $set: profileUpdate }
+          );
         }
       }
 
-      // Generate unique sequential request number: GENIE-2026-XXXX
-      const count = await BuybackRequestModel.countDocuments();
-      const requestNumber = `GENIE-${new Date().getFullYear()}-${(1000 + count + 1).toString()}`;
-
-      const buybackRequest = await BuybackRequestModel.create({
-        requestNumber,
-        userId,
-        customerDetails: {
-          fullName: customerFullName,
-          phone: customerPhone,
-          alternatePhone,
-          email: req.user?.email,
-        },
-        deviceDetails: {
-          brandId: (model.brandId as any)._id,
-          brandName: (model.brandId as any).name,
-          modelId: model._id,
-          modelName: model.name,
-          variantId: variantId && mongoose.Types.ObjectId.isValid(variantId) ? variantId : undefined,
-          storageCapacity,
-        },
-        declaredCondition,
-        indicativeEstimate: {
-          basePrice: valuation.basePrice,
-          storageAdjustment: valuation.storageAdjustment,
-          totalDeductions: valuation.totalDeductions,
-          totalBonuses: valuation.totalBonuses,
-          estimatedAmount: valuation.finalCalculatedAmount,
-          pricingRuleVersion: valuation.pricingRuleVersion,
-          breakdown: valuation.breakdown,
-        },
-        photoUrls: photoUrls || [],
-        pickupAddress,
-        payoutDetails,
-        scheduledPickupDate: rawBody.scheduledPickupDate || rawBody.pickupAddress?.scheduledDate || rawBody.pickupAddress?.preferredSlot,
-        preferredTimeWindow: rawBody.preferredTimeWindow || rawBody.pickupAddress?.preferredSlot,
-        status: RequestStatus.SUBMITTED,
-        timeline: [
-          {
-            status: RequestStatus.SUBMITTED,
-            timestamp: new Date(),
-            note: 'Buyback request submitted by customer with indicative valuation.',
-            updatedBy: 'Customer',
+      // Generate unique sequential request number: GENIE-YYYY-XXXX (atomic counter, safe across gaps & concurrency)
+      const year = new Date().getFullYear();
+      const { doc: buybackRequest, sequenceNumber: requestNumber } = await createWithUniqueSequence<any>({
+        model: BuybackRequestModel,
+        field: 'requestNumber',
+        counterKey: `buyback-request-${year}`,
+        formatNumber: (seq) => `GENIE-${year}-${seq}`,
+        extractPattern: new RegExp(`^(?:GENIE|REV)-${year}-(\\d+)$`, 'i'),
+        defaultFloor: 1000,
+        buildDoc: (generatedNumber) => ({
+          requestNumber: generatedNumber,
+          userId,
+          customerDetails: {
+            fullName: customerFullName,
+            phone: customerPhone,
+            alternatePhone,
+            email: req.user?.email,
           },
-        ],
+          deviceDetails: {
+            brandId: (model.brandId as any)._id,
+            brandName: (model.brandId as any).name,
+            modelId: model._id,
+            modelName: model.name,
+            variantId: variantId && mongoose.Types.ObjectId.isValid(variantId) ? variantId : undefined,
+            storageCapacity,
+          },
+          declaredCondition,
+          indicativeEstimate: {
+            basePrice: valuation.basePrice,
+            storageAdjustment: valuation.storageAdjustment,
+            totalDeductions: valuation.totalDeductions,
+            totalBonuses: valuation.totalBonuses,
+            estimatedAmount: valuation.finalCalculatedAmount,
+            pricingRuleVersion: valuation.pricingRuleVersion,
+            breakdown: valuation.breakdown,
+          },
+          photoUrls: photoUrls || [],
+          pickupAddress,
+          payoutDetails,
+          scheduledPickupDate: rawBody.scheduledPickupDate || rawBody.pickupAddress?.scheduledDate || rawBody.pickupAddress?.preferredSlot,
+          preferredTimeWindow: rawBody.preferredTimeWindow || rawBody.pickupAddress?.preferredSlot,
+          status: RequestStatus.SUBMITTED,
+          timeline: [
+            {
+              status: RequestStatus.SUBMITTED,
+              timestamp: new Date(),
+              note: 'Buyback request submitted by customer with indicative valuation.',
+              updatedBy: 'Customer',
+            },
+          ],
+        }),
       });
 
       // Dispatch notification to operations

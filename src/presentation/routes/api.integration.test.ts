@@ -7,6 +7,8 @@ import { BrandModel } from '../../infrastructure/database/models/Brand.js';
 import { SmartphoneModel } from '../../infrastructure/database/models/SmartphoneModel.js';
 import { StorageVariantModel } from '../../infrastructure/database/models/StorageVariant.js';
 import { PricingRuleModel } from '../../infrastructure/database/models/PricingRule.js';
+import { BuybackRequestModel } from '../../infrastructure/database/models/BuybackRequest.js';
+import { CounterModel } from '../../infrastructure/database/models/Counter.js';
 import { TokenService } from '../../infrastructure/security/tokenService.js';
 import { GoogleAuthService } from '../../infrastructure/security/GoogleAuthService.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
@@ -626,6 +628,44 @@ describe('REVOO Backend Integration Tests', () => {
       const none = await send(undefined);
       expect(none.status).toBe(201);
       expect(none.body.data.customerDetails.alternatePhone).toBeUndefined();
+    });
+
+    test('Same customer can book a second mobile (including with a new number), even after deleted requests / gaps', async () => {
+      const year = new Date().getFullYear();
+      // Create two requests and delete the first one so countDocuments() would collide if count-based
+      const first = await request(app)
+        .post('/api/v1/requests')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send(webBooking({ pickupAddress: { ...webBooking().pickupAddress, fullName: 'Customer B', phone: '9003367721' } }));
+      expect(first.status).toBe(201);
+
+      const secondSameCustomer = await request(app)
+        .post('/api/v1/requests')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send(webBooking({ pickupAddress: { ...webBooking().pickupAddress, fullName: 'Customer B', phone: '9884012345' } }));
+      expect(secondSameCustomer.status).toBe(201);
+      expect(secondSameCustomer.body.data.requestNumber).not.toBe(first.body.data.requestNumber);
+      expect(secondSameCustomer.body.data.customerDetails.phone).toBe('9884012345');
+
+      // Delete the earlier request and clear the counter to simulate a legacy gap (count < max suffix)
+      await BuybackRequestModel.deleteOne({ _id: first.body.data._id });
+      await CounterModel.deleteOne({ _id: `buyback-request-${year}` });
+
+      // Two concurrent submissions (new number & repeat phone) must both succeed with unique numbers
+      const [c1, c2] = await Promise.all([
+        request(app)
+          .post('/api/v1/requests')
+          .set('Authorization', `Bearer ${tokenB}`)
+          .send(webBooking({ pickupAddress: { ...webBooking().pickupAddress, phone: '9003367722' } })),
+        request(app)
+          .post('/api/v1/requests')
+          .set('Authorization', `Bearer ${tokenA}`)
+          .send(webBooking({ pickupAddress: { ...webBooking().pickupAddress, phone: '9845012345' } })),
+      ]);
+      expect(c1.status).toBe(201);
+      expect(c2.status).toBe(201);
+      expect(c1.body.data.requestNumber).not.toBe(secondSameCustomer.body.data.requestNumber);
+      expect(c2.body.data.requestNumber).not.toBe(c1.body.data.requestNumber);
     });
 
     test('GET /api/v1/requests/my/:requestNumber finds a request by its number', async () => {

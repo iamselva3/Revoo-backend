@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { CustomerEnquiryModel } from '../../infrastructure/database/models/CustomerEnquiry.js';
+import { createWithUniqueSequence } from '../../infrastructure/database/sequence.js';
 import { AppError, EnquiryStatus } from '../../shared/types.js';
 import { AuthenticatedAdminRequest } from '../middlewares/auth.middleware.js';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService.js';
@@ -9,17 +10,23 @@ export class EnquiryController {
   public static async submitEnquiry(req: Request, res: Response, next: NextFunction) {
     try {
       const { name, email, phone, subject, message } = req.body;
-      const count = await CustomerEnquiryModel.countDocuments();
-      const ticketNumber = `TKT-${new Date().getFullYear()}-${(100 + count + 1).toString()}`;
-
-      const enquiry = await CustomerEnquiryModel.create({
-        ticketNumber,
-        name,
-        email: email.toLowerCase().trim(),
-        phone,
-        subject,
-        message,
-        status: EnquiryStatus.OPEN,
+      const year = new Date().getFullYear();
+      const { doc: enquiry, sequenceNumber: ticketNumber } = await createWithUniqueSequence<any>({
+        model: CustomerEnquiryModel,
+        field: 'ticketNumber',
+        counterKey: `enquiry-ticket-${year}`,
+        formatNumber: (seq) => `TKT-${year}-${seq}`,
+        extractPattern: new RegExp(`^TKT-${year}-(\\d+)$`, 'i'),
+        defaultFloor: 100,
+        buildDoc: (generatedNumber) => ({
+          ticketNumber: generatedNumber,
+          name,
+          email: email.toLowerCase().trim(),
+          phone,
+          subject,
+          message,
+          status: EnquiryStatus.OPEN,
+        }),
       });
 
       // Notify admin team by email/in-app alert

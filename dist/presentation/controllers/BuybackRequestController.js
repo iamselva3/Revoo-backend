@@ -22,6 +22,7 @@ const audit_middleware_js_1 = require("../middlewares/audit.middleware.js");
 const StorageService_js_1 = require("../../infrastructure/storage/StorageService.js");
 const DeviceImage_js_1 = require("../../infrastructure/database/models/DeviceImage.js");
 const User_js_1 = require("../../infrastructure/database/models/User.js");
+const sequence_js_1 = require("../../infrastructure/database/sequence.js");
 const PAYOUT_METHODS = ['UPI', 'BANK_TRANSFER', 'INSTANT_CASH'];
 const cleanText = (value, max = 200) => {
     if (value === undefined || value === null)
@@ -220,61 +221,68 @@ class BuybackRequestController {
                 if (normalized !== customerPhone)
                     alternatePhone = normalized;
             }
-            // If user profile is missing a phone number, update UserModel permanently
+            // If user profile is missing a phone number, update UserModel atomically
             if (userId && customerPhone && customerPhone !== 'N/A') {
-                const userDoc = await User_js_1.UserModel.findById(userId);
+                const profileUpdate = { phone: customerPhone };
+                const userDoc = await User_js_1.UserModel.findById(userId).select('phone fullName').lean();
                 if (userDoc && !userDoc.phone) {
-                    userDoc.phone = customerPhone;
                     if (customerFullName && customerFullName !== 'Valued Customer' && !userDoc.fullName) {
-                        userDoc.fullName = customerFullName;
+                        profileUpdate.fullName = customerFullName;
                     }
-                    await userDoc.save();
+                    await User_js_1.UserModel.updateOne({ _id: userId, $or: [{ phone: { $exists: false } }, { phone: null }, { phone: '' }] }, { $set: profileUpdate });
                 }
             }
-            // Generate unique sequential request number: GENIE-2026-XXXX
-            const count = await BuybackRequest_js_1.BuybackRequestModel.countDocuments();
-            const requestNumber = `GENIE-${new Date().getFullYear()}-${(1000 + count + 1).toString()}`;
-            const buybackRequest = await BuybackRequest_js_1.BuybackRequestModel.create({
-                requestNumber,
-                userId,
-                customerDetails: {
-                    fullName: customerFullName,
-                    phone: customerPhone,
-                    alternatePhone,
-                    email: req.user?.email,
-                },
-                deviceDetails: {
-                    brandId: model.brandId._id,
-                    brandName: model.brandId.name,
-                    modelId: model._id,
-                    modelName: model.name,
-                    variantId: variantId && mongoose_1.default.Types.ObjectId.isValid(variantId) ? variantId : undefined,
-                    storageCapacity,
-                },
-                declaredCondition,
-                indicativeEstimate: {
-                    basePrice: valuation.basePrice,
-                    storageAdjustment: valuation.storageAdjustment,
-                    totalDeductions: valuation.totalDeductions,
-                    totalBonuses: valuation.totalBonuses,
-                    estimatedAmount: valuation.finalCalculatedAmount,
-                    pricingRuleVersion: valuation.pricingRuleVersion,
-                    breakdown: valuation.breakdown,
-                },
-                photoUrls: photoUrls || [],
-                pickupAddress,
-                payoutDetails,
-                scheduledPickupDate: rawBody.scheduledPickupDate || rawBody.pickupAddress?.scheduledDate || rawBody.pickupAddress?.preferredSlot,
-                preferredTimeWindow: rawBody.preferredTimeWindow || rawBody.pickupAddress?.preferredSlot,
-                status: types_js_1.RequestStatus.SUBMITTED,
-                timeline: [
-                    {
-                        status: types_js_1.RequestStatus.SUBMITTED,
-                        timestamp: new Date(),
-                        note: 'Buyback request submitted by customer with indicative valuation.',
-                        updatedBy: 'Customer',
+            // Generate unique sequential request number: GENIE-YYYY-XXXX (atomic counter, safe across gaps & concurrency)
+            const year = new Date().getFullYear();
+            const { doc: buybackRequest, sequenceNumber: requestNumber } = await (0, sequence_js_1.createWithUniqueSequence)({
+                model: BuybackRequest_js_1.BuybackRequestModel,
+                field: 'requestNumber',
+                counterKey: `buyback-request-${year}`,
+                formatNumber: (seq) => `GENIE-${year}-${seq}`,
+                extractPattern: new RegExp(`^(?:GENIE|REV)-${year}-(\\d+)$`, 'i'),
+                defaultFloor: 1000,
+                buildDoc: (generatedNumber) => ({
+                    requestNumber: generatedNumber,
+                    userId,
+                    customerDetails: {
+                        fullName: customerFullName,
+                        phone: customerPhone,
+                        alternatePhone,
+                        email: req.user?.email,
                     },
-                ],
+                    deviceDetails: {
+                        brandId: model.brandId._id,
+                        brandName: model.brandId.name,
+                        modelId: model._id,
+                        modelName: model.name,
+                        variantId: variantId && mongoose_1.default.Types.ObjectId.isValid(variantId) ? variantId : undefined,
+                        storageCapacity,
+                    },
+                    declaredCondition,
+                    indicativeEstimate: {
+                        basePrice: valuation.basePrice,
+                        storageAdjustment: valuation.storageAdjustment,
+                        totalDeductions: valuation.totalDeductions,
+                        totalBonuses: valuation.totalBonuses,
+                        estimatedAmount: valuation.finalCalculatedAmount,
+                        pricingRuleVersion: valuation.pricingRuleVersion,
+                        breakdown: valuation.breakdown,
+                    },
+                    photoUrls: photoUrls || [],
+                    pickupAddress,
+                    payoutDetails,
+                    scheduledPickupDate: rawBody.scheduledPickupDate || rawBody.pickupAddress?.scheduledDate || rawBody.pickupAddress?.preferredSlot,
+                    preferredTimeWindow: rawBody.preferredTimeWindow || rawBody.pickupAddress?.preferredSlot,
+                    status: types_js_1.RequestStatus.SUBMITTED,
+                    timeline: [
+                        {
+                            status: types_js_1.RequestStatus.SUBMITTED,
+                            timestamp: new Date(),
+                            note: 'Buyback request submitted by customer with indicative valuation.',
+                            updatedBy: 'Customer',
+                        },
+                    ],
+                }),
             });
             // Dispatch notification to operations
             await NotificationService_js_1.NotificationService.notify({
